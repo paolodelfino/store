@@ -1,7 +1,7 @@
 {
-  "name": "{}",
-  "version": "{}",
-  "description": "{}",
+  "name": "pustore",
+  "version": "0.1.0",
+  "description": "",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -15,7 +15,7 @@
     "./dist/index.d.ts": "./dist/index.d.ts"
   },
   "scripts": {
-    "test": "node test/index.mjs",
+    "test": "deno run --allow-read test/index.ts",
     "dev": "tsup --watch",
     "build": "tsup",
     "publish": "npm run build && npm publish"
@@ -34,8 +34,11 @@
   "author": "Paolo Delfino <hackymail12@gmail.com>",
   "license": "MIT",
   "devDependencies": {
+    "@types/chai": "^4.3.11",
+    "chai": "^4.3.10",
     "dotenv": "^16.3.1",
     "tsup": "^8.0.1",
+    "typedoc": "^0.25.4",
     "typescript": "^5.3.2"
   }
 }
