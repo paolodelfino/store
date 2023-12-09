@@ -69,7 +69,7 @@ export class UStore<T> {
     this._set(JSON.parse(store));
   }
 
-  get lenght() {
+  get length() {
     return Object.keys(this._get()).length;
   }
 
