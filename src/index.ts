@@ -73,6 +73,10 @@ export class UStore<T> {
     return Object.keys(this._get()).length;
   }
 
+  all() {
+    return Object.entries(this._get()).map(([_, entry]) => entry.value);
+  }
+
   private _get() {
     const store = JSON.parse(
       this._storage.getItem(this._identifier) ?? "null"

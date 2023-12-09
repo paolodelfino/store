@@ -125,11 +125,18 @@ await stopwatch("import, export", () => {
   assert(mylist.get("rick"));
 
   const newstore = new UStore({ identifier: "newstore", kind: "memory" });
-  assert(newstore.lenght == 0);
+  assert(newstore.length == 0);
 
   newstore.import(mylist.export());
   // @ts-ignore
-  assert(newstore.lenght == 2);
+  assert(newstore.length == 2);
+});
+
+await stopwatch("all", () => {
+  const titles = mylist.all();
+  assert(titles.length == 2);
+  assert(titles[0].slug == "enola-holmes");
+  assert(titles[1].slug == "rick-and-morty");
 });
 
 console.log("Done!");
