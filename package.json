@@ -18,7 +18,7 @@
     "test": "deno run --allow-read test/index.ts",
     "dev": "tsup --watch",
     "build": "tsup",
-    "pre-publish": "npm run build && npx typedoc src/index.ts"
+    "prepublishOnly": "npm run build && npx typedoc src/index.ts"
   },
   "repository": {
     "type": "git",
