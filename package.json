@@ -1,0 +1,41 @@
+{
+  "name": "{}",
+  "version": "{}",
+  "description": "{}",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./dist/index.js": "./dist/index.js",
+    "./dist/index.mjs": "./dist/index.mjs",
+    "./dist/index.d.ts": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "test": "node test/index.mjs",
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "publish": "npm run build && npm publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:paolodelfino/{}.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paolodelfino/{}/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [],
+  "author": "Paolo Delfino <hackymail12@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "dotenv": "^16.3.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.2"
+  }
+}
