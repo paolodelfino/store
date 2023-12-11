@@ -3,6 +3,16 @@ import { Store } from "./types";
 export class UStore<T> {
   private _storage: Storage;
   private _identifier: string;
+  on_change: ((store: UStore<T>) => void)[] = [];
+
+  private _on_change() {
+    const perfect_clone = Object.assign(
+      Object.create(Object.getPrototypeOf(this)),
+      this
+    );
+    perfect_clone.on_change = [];
+    this.on_change.forEach((fn) => fn(perfect_clone));
+  }
 
   constructor({
     identifier,
@@ -91,6 +101,7 @@ export class UStore<T> {
 
   private _set(store: Store<T>) {
     this._storage.setItem(this._identifier, JSON.stringify(store));
+    this._on_change();
   }
 
   private _rm_expired(store: Store<T>): Store<T> {
