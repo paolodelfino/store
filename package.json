@@ -22,10 +22,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:paolodelfino/{}.git"
+    "url": "git@github.com:paolodelfino/store.git"
   },
   "bugs": {
-    "url": "https://github.com/paolodelfino/{}/issues"
+    "url": "https://github.com/paolodelfino/store/issues"
   },
   "files": [
     "dist"
