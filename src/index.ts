@@ -35,7 +35,7 @@ export class UStore<T> {
     return store[key]?.value ?? null;
   }
 
-  set({ key, value, expiry }: { key: string; value: T; expiry?: number }) {
+  set(key: string, { value, expiry }: { value: T; expiry?: number }) {
     const store = this._get();
     store[key] = {
       expiry: expiry ?? null,
@@ -44,7 +44,7 @@ export class UStore<T> {
     this._set(store);
   }
 
-  update({ key, value }: { key: string; value: Partial<T> }) {
+  update(key: string, value: Partial<T>) {
     const store = this._get();
     if (!store[key]) {
       throw new Error("cannot update non-existing entry");

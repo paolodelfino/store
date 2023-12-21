@@ -20,8 +20,7 @@ await stopwatch("get", () => {
 });
 
 await stopwatch("set", () => {
-  mylist.set({
-    key: "rick",
+  mylist.set("rick", {
     value: { id: 5473, slug: "rick-and-morty" },
   });
 
@@ -31,8 +30,7 @@ await stopwatch("set", () => {
 await stopwatch("expiry", async () => {
   const expiry = 200;
 
-  mylist.set({
-    key: "enola holmes",
+  mylist.set("enola holmes", {
     value: { id: 234, slug: "enola-holmes" },
     expiry: Date.now() + 1 * expiry,
   });
@@ -50,7 +48,7 @@ await stopwatch("update", () => {
   assert(rick.id == 5473);
   assert(rick.slug == "rick-and-morty");
 
-  mylist.update({ key: "rick", value: { id: 42 } });
+  mylist.update("rick", { id: 42 });
   rick = mylist.get("rick");
   assert(rick);
 
@@ -66,7 +64,7 @@ await stopwatch("rm", () => {
 
 await stopwatch("update (error)", () => {
   try {
-    mylist.update({ key: "rick", value: { id: 42 } });
+    mylist.update("rick", { id: 42 });
     assert(0);
   } catch (error) {
     if (error.message != "cannot update non-existing entry") {
@@ -76,14 +74,12 @@ await stopwatch("update (error)", () => {
 });
 
 await stopwatch("clear", () => {
-  mylist.set({
-    key: "enola",
+  mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
   assert(mylist.get("enola"));
 
-  mylist.set({
-    key: "rick",
+  mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
   assert(mylist.get("rick"));
@@ -94,14 +90,12 @@ await stopwatch("clear", () => {
 });
 
 await stopwatch("delete", () => {
-  mylist.set({
-    key: "enola",
+  mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
   assert(mylist.get("enola"));
 
-  mylist.set({
-    key: "rick",
+  mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
   assert(mylist.get("rick"));
@@ -112,14 +106,12 @@ await stopwatch("delete", () => {
 });
 
 await stopwatch("import, export", () => {
-  mylist.set({
-    key: "enola",
+  mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
   assert(mylist.get("enola"));
 
-  mylist.set({
-    key: "rick",
+  mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
   assert(mylist.get("rick"));
