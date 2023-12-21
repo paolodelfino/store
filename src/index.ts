@@ -83,7 +83,7 @@ export class UStore<T> {
     return Object.keys(this._get()).length;
   }
 
-  all() {
+  get all() {
     return Object.entries(this._get()).map(([_, entry]) => entry.value);
   }
 

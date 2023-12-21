@@ -133,7 +133,7 @@ await stopwatch("import, export", () => {
 });
 
 await stopwatch("all", () => {
-  const titles = mylist.all();
+  const titles = mylist.all;
   assert(titles.length == 2);
   assert(titles[0].slug == "enola-holmes");
   assert(titles[1].slug == "rick-and-morty");
