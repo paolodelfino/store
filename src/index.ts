@@ -35,6 +35,10 @@ export class UStore<T> {
     return store[key]?.value ?? null;
   }
 
+  has(key: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this._get(), key);
+  }
+
   set(key: string, { value, expiry }: { value: T; expiry?: number }) {
     const store = this._get();
     store[key] = {

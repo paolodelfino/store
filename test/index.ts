@@ -24,7 +24,18 @@ await stopwatch("set", () => {
     value: { id: 5473, slug: "rick-and-morty" },
   });
 
-  assert(mylist.get("rick"));
+  assert.isTrue(mylist.has("rick"));
+  mylist.clear();
+});
+
+await stopwatch("has", () => {
+  assert.isFalse(mylist.has("rick"));
+
+  mylist.set("rick", {
+    value: { id: 5473, slug: "rick-and-morty" },
+  });
+
+  assert.isTrue(mylist.has("rick"));
 });
 
 await stopwatch("expiry", async () => {
@@ -35,10 +46,10 @@ await stopwatch("expiry", async () => {
     expiry: Date.now() + 1 * expiry,
   });
 
-  assert(mylist.get("enola holmes"));
+  assert.isTrue(mylist.has("enola holmes"));
 
   await time(expiry);
-  assert(!mylist.get("enola holmes"));
+  assert.isFalse(mylist.has("enola holmes"));
 });
 
 await stopwatch("update", () => {
@@ -57,9 +68,9 @@ await stopwatch("update", () => {
 });
 
 await stopwatch("rm", () => {
-  assert(mylist.get("rick"));
+  assert.isTrue(mylist.has("rick"));
   mylist.rm("rick");
-  assert(!mylist.get("rick"));
+  assert.isFalse(mylist.has("rick"));
 });
 
 await stopwatch("update (error)", () => {
@@ -77,44 +88,44 @@ await stopwatch("clear", () => {
   mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
-  assert(mylist.get("enola"));
+  assert.isTrue(mylist.has("enola"));
 
   mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
-  assert(mylist.get("rick"));
+  assert.isTrue(mylist.has("rick"));
 
   mylist.clear();
-  assert(!mylist.get("enola"));
-  assert(!mylist.get("rick"));
+  assert.isFalse(mylist.has("enola"));
+  assert.isFalse(mylist.has("rick"));
 });
 
 await stopwatch("delete", () => {
   mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
-  assert(mylist.get("enola"));
+  assert.isTrue(mylist.has("enola"));
 
   mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
-  assert(mylist.get("rick"));
+  assert.isTrue(mylist.has("rick"));
 
-  mylist.clear();
-  assert(!mylist.get("enola"));
-  assert(!mylist.get("rick"));
+  mylist.delete();
+  assert.isFalse(mylist.has("enola"));
+  assert.isFalse(mylist.has("rick"));
 });
 
 await stopwatch("import, export", () => {
   mylist.set("enola", {
     value: { id: 234, slug: "enola-holmes" },
   });
-  assert(mylist.get("enola"));
+  assert.isTrue(mylist.has("enola"));
 
   mylist.set("rick", {
     value: { id: 42, slug: "rick-and-morty" },
   });
-  assert(mylist.get("rick"));
+  assert.isTrue(mylist.has("rick"));
 
   const newstore = new UStore({ identifier: "newstore", kind: "memory" });
   assert(newstore.length == 0);
