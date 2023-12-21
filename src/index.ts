@@ -1,25 +1,30 @@
 import { Store } from "./types";
 
 export class UStore<T> {
-  private _storage: Storage;
-  private _identifier: string;
+  private readonly _storage: Storage;
+  private readonly _identifier: string;
   on_change: ((store: UStore<T>) => void)[] = [];
+  private readonly _middlewares;
 
   private _on_change() {
-    const perfect_clone = Object.assign(
-      Object.create(Object.getPrototypeOf(this)),
-      this
-    );
-    perfect_clone.on_change = [];
-    this.on_change.forEach((fn) => fn(perfect_clone));
+    const on_change = this.on_change;
+    this.on_change = [];
+
+    this.on_change.forEach((fn) => fn(this));
+
+    this.on_change = on_change;
   }
 
   constructor({
     identifier,
     kind,
+    middlewares,
   }: {
     identifier: string;
     kind: "local" | "session" | "memory";
+    middlewares?: Partial<{
+      get: (store: UStore<T>, key: string) => string;
+    }>;
   }) {
     this._identifier = identifier;
     this._storage =
@@ -28,9 +33,18 @@ export class UStore<T> {
         : kind == "session"
         ? sessionStorage
         : new Memory_Storage();
+    this._middlewares = middlewares;
   }
 
   get(key: string): T | null {
+    if (this._middlewares?.get) {
+      const middleware_get = this._middlewares.get;
+      this._middlewares.get = undefined;
+
+      key = middleware_get(this, key);
+
+      this._middlewares.get = middleware_get;
+    }
     const store = this._get();
     return store[key]?.value ?? null;
   }
@@ -39,10 +53,10 @@ export class UStore<T> {
     return Object.prototype.hasOwnProperty.call(this._get(), key);
   }
 
-  set(key: string, { value, expiry }: { value: T; expiry?: number }) {
+  set(key: string, value: T, options?: Partial<{ expiry: number }>) {
     const store = this._get();
     store[key] = {
-      expiry: expiry ?? null,
+      expiry: options?.expiry ?? null,
       value,
     };
     this._set(store);

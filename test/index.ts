@@ -20,9 +20,7 @@ await stopwatch("get", () => {
 });
 
 await stopwatch("set", () => {
-  mylist.set("rick", {
-    value: { id: 5473, slug: "rick-and-morty" },
-  });
+  mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
 
   assert.isTrue(mylist.has("rick"));
   mylist.clear();
@@ -31,9 +29,7 @@ await stopwatch("set", () => {
 await stopwatch("has", () => {
   assert.isFalse(mylist.has("rick"));
 
-  mylist.set("rick", {
-    value: { id: 5473, slug: "rick-and-morty" },
-  });
+  mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
 
   assert.isTrue(mylist.has("rick"));
 });
@@ -41,10 +37,11 @@ await stopwatch("has", () => {
 await stopwatch("expiry", async () => {
   const expiry = 200;
 
-  mylist.set("enola holmes", {
-    value: { id: 234, slug: "enola-holmes" },
-    expiry: Date.now() + 1 * expiry,
-  });
+  mylist.set(
+    "enola holmes",
+    { id: 234, slug: "enola-holmes" },
+    { expiry: Date.now() + expiry }
+  );
 
   assert.isTrue(mylist.has("enola holmes"));
 
@@ -85,14 +82,10 @@ await stopwatch("update (error)", () => {
 });
 
 await stopwatch("clear", () => {
-  mylist.set("enola", {
-    value: { id: 234, slug: "enola-holmes" },
-  });
+  mylist.set("enola", { id: 234, slug: "enola-holmes" });
   assert.isTrue(mylist.has("enola"));
 
-  mylist.set("rick", {
-    value: { id: 42, slug: "rick-and-morty" },
-  });
+  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
   assert.isTrue(mylist.has("rick"));
 
   mylist.clear();
@@ -101,14 +94,10 @@ await stopwatch("clear", () => {
 });
 
 await stopwatch("delete", () => {
-  mylist.set("enola", {
-    value: { id: 234, slug: "enola-holmes" },
-  });
+  mylist.set("enola", { id: 234, slug: "enola-holmes" });
   assert.isTrue(mylist.has("enola"));
 
-  mylist.set("rick", {
-    value: { id: 42, slug: "rick-and-morty" },
-  });
+  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
   assert.isTrue(mylist.has("rick"));
 
   mylist.delete();
@@ -117,14 +106,10 @@ await stopwatch("delete", () => {
 });
 
 await stopwatch("import, export", () => {
-  mylist.set("enola", {
-    value: { id: 234, slug: "enola-holmes" },
-  });
+  mylist.set("enola", { id: 234, slug: "enola-holmes" });
   assert.isTrue(mylist.has("enola"));
 
-  mylist.set("rick", {
-    value: { id: 42, slug: "rick-and-morty" },
-  });
+  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
   assert.isTrue(mylist.has("rick"));
 
   const newstore = new UStore({ identifier: "newstore", kind: "memory" });
@@ -140,6 +125,39 @@ await stopwatch("all", () => {
   assert(titles.length == 2);
   assert(titles[0].slug == "enola-holmes");
   assert(titles[1].slug == "rick-and-morty");
+});
+
+await stopwatch("middleware get", async () => {
+  {
+    const mylist = new UStore<{ slug: string }>({
+      identifier: "mylist",
+      kind: "memory",
+      middlewares: {
+        get(store, key) {
+          return "enola";
+        },
+      },
+    });
+
+    mylist.set("enola", { slug: "enola" });
+    assert.strictEqual(mylist.get("rick")?.slug, "enola");
+  }
+
+  {
+    const mylist = new UStore<{ slug: string }>({
+      identifier: "mylist",
+      kind: "memory",
+      middlewares: {
+        get(store, key) {
+          store.set(key, { slug: "dirty_" + store.get(key)!.slug });
+          return key;
+        },
+      },
+    });
+
+    mylist.set("enola", { slug: "enola" });
+    assert.strictEqual(mylist.get("enola")?.slug, "dirty_enola");
+  }
 });
 
 console.log("Done!");
