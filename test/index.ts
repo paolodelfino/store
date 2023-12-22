@@ -1,5 +1,6 @@
 import { assert } from "chai";
 import "dotenv/config";
+import "fake-indexeddb/auto";
 import { UStore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,64 +16,64 @@ const mylist = new UStore<{ slug: string; id: number }>({
   kind: "memory",
 });
 
-await stopwatch("get", () => {
-  assert(!mylist.get("rick"));
+await stopwatch("get", async () => {
+  assert.isNull(await mylist.get("rick"));
 });
 
-await stopwatch("set", () => {
-  mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
+await stopwatch("set", async () => {
+  await mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
 
-  assert.isTrue(mylist.has("rick"));
-  mylist.clear();
+  assert.isTrue(await mylist.has("rick"));
+  await mylist.clear();
 });
 
-await stopwatch("has", () => {
-  assert.isFalse(mylist.has("rick"));
+await stopwatch("has", async () => {
+  assert.isFalse(await mylist.has("rick"));
 
-  mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
+  await mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
 
-  assert.isTrue(mylist.has("rick"));
+  assert.isTrue(await mylist.has("rick"));
 });
 
 await stopwatch("expiry", async () => {
   const expiry = 200;
 
-  mylist.set(
+  await mylist.set(
     "enola holmes",
     { id: 234, slug: "enola-holmes" },
     { expiry: Date.now() + expiry }
   );
 
-  assert.isTrue(mylist.has("enola holmes"));
+  assert.isTrue(await mylist.has("enola holmes"));
 
   await time(expiry);
-  assert.isFalse(mylist.has("enola holmes"));
+  assert.isFalse(await mylist.has("enola holmes"));
 });
 
-await stopwatch("update", () => {
-  let rick = mylist.get("rick");
+await stopwatch("update", async () => {
+  let rick = await mylist.get("rick");
   assert(rick);
 
   assert(rick.id == 5473);
   assert(rick.slug == "rick-and-morty");
 
-  mylist.update("rick", { id: 42 });
-  rick = mylist.get("rick");
+  await mylist.update("rick", { id: 42 });
+  rick = await mylist.get("rick");
   assert(rick);
 
-  assert(rick.id == 42);
+  assert.strictEqual(rick.id, 42);
   assert(rick.slug == "rick-and-morty");
 });
 
-await stopwatch("rm", () => {
-  assert.isTrue(mylist.has("rick"));
-  mylist.rm("rick");
-  assert.isFalse(mylist.has("rick"));
+await stopwatch("rm", async () => {
+  assert.isTrue(await mylist.has("rick"));
+  await mylist.rm("rick");
+  assert.isFalse(await mylist.has("rick"));
 });
 
-await stopwatch("update (error)", () => {
+await stopwatch("update (error)", async () => {
   try {
-    mylist.update("rick", { id: 42 });
+    await mylist.update("rick", { id: 42 });
     assert(0);
   } catch (error) {
     if (error.message != "cannot update non-existing entry") {
@@ -81,47 +82,47 @@ await stopwatch("update (error)", () => {
   }
 });
 
-await stopwatch("clear", () => {
-  mylist.set("enola", { id: 234, slug: "enola-holmes" });
-  assert.isTrue(mylist.has("enola"));
+await stopwatch("clear", async () => {
+  await mylist.set("enola", { id: 234, slug: "enola-holmes" });
+  assert.isTrue(await mylist.has("enola"));
 
-  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
-  assert.isTrue(mylist.has("rick"));
+  await mylist.set("rick", { id: 42, slug: "rick-and-morty" });
+  assert.isTrue(await mylist.has("rick"));
 
-  mylist.clear();
-  assert.isFalse(mylist.has("enola"));
-  assert.isFalse(mylist.has("rick"));
+  await mylist.clear();
+  assert.isFalse(await mylist.has("enola"));
+  assert.isFalse(await mylist.has("rick"));
 });
 
-await stopwatch("delete", () => {
-  mylist.set("enola", { id: 234, slug: "enola-holmes" });
-  assert.isTrue(mylist.has("enola"));
+await stopwatch("delete", async () => {
+  await mylist.set("enola", { id: 234, slug: "enola-holmes" });
+  assert.isTrue(await mylist.has("enola"));
 
-  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
-  assert.isTrue(mylist.has("rick"));
+  await mylist.set("rick", { id: 42, slug: "rick-and-morty" });
+  assert.isTrue(await mylist.has("rick"));
 
-  mylist.delete();
-  assert.isFalse(mylist.has("enola"));
-  assert.isFalse(mylist.has("rick"));
+  await mylist.delete();
+  assert.isFalse(await mylist.has("enola"));
+  assert.isFalse(await mylist.has("rick"));
 });
 
-await stopwatch("import, export", () => {
-  mylist.set("enola", { id: 234, slug: "enola-holmes" });
-  assert.isTrue(mylist.has("enola"));
+await stopwatch("import, export", async () => {
+  await mylist.set("enola", { id: 234, slug: "enola-holmes" });
+  assert.isTrue(await mylist.has("enola"));
 
-  mylist.set("rick", { id: 42, slug: "rick-and-morty" });
-  assert.isTrue(mylist.has("rick"));
+  await mylist.set("rick", { id: 42, slug: "rick-and-morty" });
+  assert.isTrue(await mylist.has("rick"));
 
   const newstore = new UStore({ identifier: "newstore", kind: "memory" });
-  assert(newstore.length == 0);
+  assert((await newstore.length()) == 0);
 
-  newstore.import(mylist.export());
+  await newstore.import(await mylist.export());
   // @ts-ignore
-  assert(newstore.length == 2);
+  assert.strictEqual(await newstore.length(), 2);
 });
 
-await stopwatch("all", () => {
-  const titles = mylist.all;
+await stopwatch("all", async () => {
+  const titles = await mylist.all();
   assert(titles.length == 2);
   assert(titles[0].slug == "enola-holmes");
   assert(titles[1].slug == "rick-and-morty");
@@ -133,14 +134,14 @@ await stopwatch("middleware get", async () => {
       identifier: "mylist",
       kind: "memory",
       middlewares: {
-        get(store, key) {
+        async get(store, key) {
           return "enola";
         },
       },
     });
 
-    mylist.set("enola", { slug: "enola" });
-    assert.strictEqual(mylist.get("rick")?.slug, "enola");
+    await mylist.set("enola", { slug: "enola" });
+    assert.strictEqual((await mylist.get("rick"))?.slug, "enola");
   }
 
   {
@@ -148,15 +149,17 @@ await stopwatch("middleware get", async () => {
       identifier: "mylist",
       kind: "memory",
       middlewares: {
-        get(store, key) {
-          store.set(key, { slug: "dirty_" + store.get(key)!.slug });
+        async get(store, key) {
+          await store.set(key, {
+            slug: "dirty_" + (await store.get(key))!.slug,
+          });
           return key;
         },
       },
     });
 
-    mylist.set("enola", { slug: "enola" });
-    assert.strictEqual(mylist.get("enola")?.slug, "dirty_enola");
+    await mylist.set("enola", { slug: "enola" });
+    assert.strictEqual((await mylist.get("enola"))?.slug, "dirty_enola");
   }
 });
 

@@ -1,16 +1,19 @@
-import { Store } from "./types";
+import { IDBPDatabase, openDB } from "idb";
+import { Async_Storage, Store } from "./types";
 
 export class UStore<T> {
-  private readonly _storage: Storage;
+  private readonly _storage: Async_Storage;
   private readonly _identifier: string;
-  on_change: ((store: UStore<T>) => void)[] = [];
+  on_change: ((store: UStore<T>) => Promise<void>)[] = [];
   private readonly _middlewares;
 
-  private _on_change() {
+  private async _on_change() {
     const on_change = this.on_change;
     this.on_change = [];
 
-    this.on_change.forEach((fn) => fn(this));
+    for (const fn of this.on_change) {
+      await fn(this);
+    }
 
     this.on_change = on_change;
   }
@@ -21,49 +24,51 @@ export class UStore<T> {
     middlewares,
   }: {
     identifier: string;
-    kind: "local" | "session" | "memory";
+    kind: "local" | "session" | "memory" | "indexeddb";
     middlewares?: Partial<{
-      get: (store: UStore<T>, key: string) => string;
+      get: (store: UStore<T>, key: string) => Promise<string>;
     }>;
   }) {
     this._identifier = identifier;
     this._storage =
       kind == "local"
-        ? localStorage
+        ? (localStorage as unknown as Async_Storage)
         : kind == "session"
-        ? sessionStorage
+        ? (sessionStorage as unknown as Async_Storage)
+        : kind == "indexeddb"
+        ? new IndexedDB_Storage(this._identifier)
         : new Memory_Storage();
     this._middlewares = middlewares;
   }
 
-  get(key: string): T | null {
+  async get(key: string): Promise<T | null> {
     if (this._middlewares?.get) {
       const middleware_get = this._middlewares.get;
       this._middlewares.get = undefined;
 
-      key = middleware_get(this, key);
+      key = await middleware_get(this, key);
 
       this._middlewares.get = middleware_get;
     }
-    const store = this._get();
+    const store = await this._get();
     return store[key]?.value ?? null;
   }
 
-  has(key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this._get(), key);
+  async has(key: string): Promise<boolean> {
+    return Object.prototype.hasOwnProperty.call(await this._get(), key);
   }
 
-  set(key: string, value: T, options?: Partial<{ expiry: number }>) {
-    const store = this._get();
+  async set(key: string, value: T, options?: Partial<{ expiry: number }>) {
+    const store = await this._get();
     store[key] = {
       expiry: options?.expiry ?? null,
       value,
     };
-    this._set(store);
+    await this._set(store);
   }
 
-  update(key: string, value: Partial<T>) {
-    const store = this._get();
+  async update(key: string, value: Partial<T>) {
+    const store = await this._get();
     if (!store[key]) {
       throw new Error("cannot update non-existing entry");
     }
@@ -72,42 +77,42 @@ export class UStore<T> {
       ...store[key].value,
       ...value,
     };
-    this._set(store);
+    await this._set(store);
   }
 
-  rm(key: string) {
-    const store = this._get();
+  async rm(key: string) {
+    const store = await this._get();
     delete store[key];
-    this._set(store);
+    await this._set(store);
   }
 
-  clear() {
-    this._create_new();
+  async clear() {
+    await this._create_new();
   }
 
-  delete() {
-    this._storage.removeItem(this._identifier);
+  async delete() {
+    await this._storage.removeItem(this._identifier);
   }
 
-  export() {
-    return JSON.stringify(this._get());
+  async export() {
+    return JSON.stringify(await this._get());
   }
 
-  import(store: string) {
-    this._set(JSON.parse(store));
+  async import(store: string) {
+    await this._set(JSON.parse(store));
   }
 
-  get length() {
-    return Object.keys(this._get()).length;
+  async length() {
+    return Object.keys(await this._get()).length;
   }
 
-  get all() {
-    return Object.entries(this._get()).map(([_, entry]) => entry.value);
+  async all() {
+    return Object.entries(await this._get()).map(([_, entry]) => entry.value);
   }
 
-  private _get() {
+  private async _get() {
     const store = JSON.parse(
-      this._storage.getItem(this._identifier) ?? "null"
+      (await this._storage.getItem(this._identifier)) ?? "null"
     ) as Store<T> | null;
 
     if (store) {
@@ -117,49 +122,86 @@ export class UStore<T> {
     return this._create_new();
   }
 
-  private _set(store: Store<T>) {
-    this._storage.setItem(this._identifier, JSON.stringify(store));
-    this._on_change();
+  private async _set(store: Store<T>) {
+    await this._storage.setItem(this._identifier, JSON.stringify(store));
+    await this._on_change();
   }
 
-  private _rm_expired(store: Store<T>): Store<T> {
+  private async _rm_expired(store: Store<T>): Promise<Store<T>> {
     Object.entries(store).forEach(([key, value]) => {
       if (value.expiry && Date.now() >= value.expiry) {
         delete store[key];
       }
     });
-    this._set(store);
+    await this._set(store);
     return store;
   }
 
-  private _create_new(): Store<T> {
+  private async _create_new(): Promise<Store<T>> {
     const store: Store<T> = {};
-    this._set(store);
+    await this._set(store);
     return store;
   }
 }
 
-class Memory_Storage implements Storage {
+class Memory_Storage implements Async_Storage {
   _data: Record<string, string | undefined> = {};
-  length: number = 0;
 
-  key(index: number): string | null {
-    return Object.keys(this._data)[index] || null;
-  }
-
-  getItem(key: string) {
+  async getItem(key: string) {
     return this._data[key] ?? null;
   }
 
-  setItem(key: string, value: string) {
+  async setItem(key: string, value: string) {
     this._data[key] = value;
   }
 
-  removeItem(key: string) {
+  async removeItem(key: string) {
     delete this._data[key];
   }
 
-  clear() {
+  async clear() {
     this._data = {};
+  }
+}
+
+class IndexedDB_Storage implements Async_Storage {
+  private _dbPromise: Promise<IDBPDatabase>;
+  private _storeName: string;
+
+  constructor(storeName: string) {
+    this._storeName = storeName;
+    this._dbPromise = openDB("UStore", 1, {
+      upgrade(database) {
+        database.createObjectStore(storeName);
+      },
+    });
+  }
+
+  async getItem(key: string): Promise<string> {
+    return (await this._dbPromise)
+      .transaction(this._storeName)
+      .objectStore(this._storeName)
+      .get(key);
+  }
+
+  async setItem(key: string, value: string) {
+    const db = await this._dbPromise;
+    const tx = db.transaction(this._storeName, "readwrite");
+    tx.objectStore(this._storeName).put(value, key);
+    await tx.done;
+  }
+
+  async removeItem(key: string) {
+    const db = await this._dbPromise;
+    const tx = db.transaction(this._storeName, "readwrite");
+    tx.objectStore(this._storeName).delete(key);
+    await tx.done;
+  }
+
+  async clear() {
+    const db = await this._dbPromise;
+    const tx = db.transaction(this._storeName, "readwrite");
+    tx.objectStore(this._storeName).clear();
+    await tx.done;
   }
 }

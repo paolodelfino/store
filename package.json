@@ -1,6 +1,6 @@
 {
   "name": "pustore",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -37,8 +37,12 @@
     "@types/chai": "^4.3.11",
     "chai": "^4.3.10",
     "dotenv": "^16.3.1",
+    "fake-indexeddb": "^5.0.1",
     "tsup": "^8.0.1",
     "typedoc": "^0.25.4",
     "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "idb": "^8.0.0"
   }
 }
