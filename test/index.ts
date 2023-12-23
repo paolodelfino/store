@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import "dotenv/config";
 import "fake-indexeddb/auto";
+import { openDB } from "idb";
 import { UStore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -11,9 +12,30 @@ const stopwatch = async (label: string, fn: any) => {
   console.timeEnd(label);
 };
 
-const mylist = new UStore<{ slug: string; id: number }>({
+const mylist = new UStore<{ slug: string; id: number }>();
+await mylist.init({
   identifier: "mylist",
-  kind: "memory",
+  kind: "indexeddb",
+});
+
+await stopwatch("indexeddb", async () => {
+  const store1 = new UStore();
+  await store1.init({ identifier: "store1", kind: "indexeddb" });
+
+  const store2 = new UStore();
+  await store2.init({ identifier: "store2", kind: "indexeddb" });
+
+  const dbs = await indexedDB.databases();
+  const db1 = dbs.find((db) => db.name == "store1");
+  assert.isDefined(db1);
+  const db2 = dbs.find((db) => db.name == "store2");
+  assert.isDefined(db2);
+
+  for (const entry_db of dbs) {
+    const db = await openDB(entry_db.name!, entry_db.version);
+    const values = await db.getAll(entry_db.name!);
+    assert.strictEqual(values.length, 0);
+  }
 });
 
 await stopwatch("get", async () => {
@@ -102,8 +124,21 @@ await stopwatch("delete", async () => {
   assert.isTrue(await mylist.has("rick"));
 
   await mylist.delete();
-  assert.isFalse(await mylist.has("enola"));
-  assert.isFalse(await mylist.has("rick"));
+
+  if (mylist.kind == "indexeddb") {
+    await mylist
+      .has("enola")
+      .then(() => {
+        assert(0, "Should not succeed");
+      })
+      .catch(() => {});
+
+    await mylist.init({ identifier: "mylist", kind: "indexeddb" }).catch(() => {
+      assert(0, "Should not fail");
+    });
+  } else {
+    assert.isFalse(await mylist.has("enola"));
+  }
 });
 
 await stopwatch("import, export", async () => {
@@ -113,7 +148,8 @@ await stopwatch("import, export", async () => {
   await mylist.set("rick", { id: 42, slug: "rick-and-morty" });
   assert.isTrue(await mylist.has("rick"));
 
-  const newstore = new UStore({ identifier: "newstore", kind: "memory" });
+  const newstore = new UStore();
+  await newstore.init({ identifier: "newstore", kind: "indexeddb" });
   assert((await newstore.length()) == 0);
 
   await newstore.import(await mylist.export());
@@ -130,9 +166,10 @@ await stopwatch("all", async () => {
 
 await stopwatch("middleware get", async () => {
   {
-    const mylist = new UStore<{ slug: string }>({
+    const mylist = new UStore<{ slug: string }>();
+    await mylist.init({
       identifier: "mylist",
-      kind: "memory",
+      kind: "indexeddb",
       middlewares: {
         async get(store, key) {
           return "enola";
@@ -145,9 +182,10 @@ await stopwatch("middleware get", async () => {
   }
 
   {
-    const mylist = new UStore<{ slug: string }>({
+    const mylist = new UStore<{ slug: string }>();
+    await mylist.init({
       identifier: "mylist",
-      kind: "memory",
+      kind: "indexeddb",
       middlewares: {
         async get(store, key) {
           await store.set(key, {

@@ -1,11 +1,12 @@
-import { IDBPDatabase, openDB } from "idb";
+import { IDBPDatabase, deleteDB, openDB } from "idb";
 import { Async_Storage, Store } from "./types";
 
 export class UStore<T> {
-  private readonly _storage: Async_Storage;
-  private readonly _identifier: string;
+  private _identifier!: string;
+  kind!: Parameters<typeof this.init>["0"]["kind"];
+  private _storage!: Async_Storage;
   on_change: ((store: UStore<T>) => Promise<void>)[] = [];
-  private readonly _middlewares;
+  private _middlewares: Parameters<typeof this.init>["0"]["middlewares"];
 
   private async _on_change() {
     const on_change = this.on_change;
@@ -18,7 +19,7 @@ export class UStore<T> {
     this.on_change = on_change;
   }
 
-  constructor({
+  async init({
     identifier,
     kind,
     middlewares,
@@ -30,14 +31,17 @@ export class UStore<T> {
     }>;
   }) {
     this._identifier = identifier;
-    this._storage =
-      kind == "local"
-        ? (localStorage as unknown as Async_Storage)
-        : kind == "session"
-        ? (sessionStorage as unknown as Async_Storage)
-        : kind == "indexeddb"
-        ? new IndexedDB_Storage(this._identifier)
-        : new Memory_Storage();
+    this.kind = kind;
+    if (kind == "local") {
+      this._storage = localStorage as unknown as Async_Storage;
+    } else if (kind == "session") {
+      this._storage = sessionStorage as unknown as Async_Storage;
+    } else if (kind == "memory") {
+      this._storage = new Memory_Storage();
+    } else {
+      this._storage = new IndexedDB_Storage();
+      await (this._storage as IndexedDB_Storage).init(this._identifier);
+    }
     this._middlewares = middlewares;
   }
 
@@ -91,7 +95,11 @@ export class UStore<T> {
   }
 
   async delete() {
-    await this._storage.removeItem(this._identifier);
+    if (this.kind == "indexeddb") {
+      await (this._storage as IndexedDB_Storage).delete();
+    } else {
+      await this._storage.removeItem(this._identifier);
+    }
   }
 
   async export() {
@@ -165,43 +173,47 @@ class Memory_Storage implements Async_Storage {
 }
 
 class IndexedDB_Storage implements Async_Storage {
-  private _dbPromise: Promise<IDBPDatabase>;
-  private _storeName: string;
+  private _db!: IDBPDatabase;
+  private _identifier!: string;
 
-  constructor(storeName: string) {
-    this._storeName = storeName;
-    this._dbPromise = openDB("UStore", 1, {
+  async init(identifier: string) {
+    this._identifier = identifier;
+    this._db = await openDB(identifier, 1, {
       upgrade(database) {
-        database.createObjectStore(storeName);
+        database.createObjectStore(identifier);
       },
     });
   }
 
   async getItem(key: string): Promise<string> {
-    return (await this._dbPromise)
-      .transaction(this._storeName)
-      .objectStore(this._storeName)
+    return this._db
+      .transaction(this._identifier)
+      .objectStore(this._identifier)
       .get(key);
   }
 
   async setItem(key: string, value: string) {
-    const db = await this._dbPromise;
-    const tx = db.transaction(this._storeName, "readwrite");
-    tx.objectStore(this._storeName).put(value, key);
+    const tx = this._db.transaction(this._identifier, "readwrite");
+    tx.objectStore(this._identifier).put(value, key);
     await tx.done;
   }
 
   async removeItem(key: string) {
-    const db = await this._dbPromise;
-    const tx = db.transaction(this._storeName, "readwrite");
-    tx.objectStore(this._storeName).delete(key);
+    const tx = this._db.transaction(this._identifier, "readwrite");
+    tx.objectStore(this._identifier).delete(key);
     await tx.done;
   }
 
   async clear() {
-    const db = await this._dbPromise;
-    const tx = db.transaction(this._storeName, "readwrite");
-    tx.objectStore(this._storeName).clear();
+    const tx = this._db.transaction(this._identifier, "readwrite");
+    tx.objectStore(this._identifier).clear();
     await tx.done;
+  }
+
+  async delete() {
+    this._db.addEventListener("close", async () => {
+      await deleteDB(this._identifier);
+    });
+    this._db.close();
   }
 }
