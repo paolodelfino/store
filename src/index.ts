@@ -19,15 +19,15 @@ export class UStore<T> {
     this.on_change = on_change;
   }
 
-  private _queue: ((store: UStore<T>) => Promise<void>)[] = [];
+  private _queue: (() => Promise<void>)[] = [];
 
-  queue(fn: (store: UStore<T>) => Promise<UStore<T>>) {
-    this._queue.push(async (store) => {
-      const updated = await fn(store);
-      updated._queue.shift()?.(updated);
+  queue(fn: () => Promise<void>) {
+    this._queue.push(async () => {
+      await fn();
+      this._queue.shift()?.();
     });
 
-    this._queue.shift()?.(this);
+    this._queue.shift()?.();
   }
 
   async init({

@@ -272,14 +272,12 @@ await stopwatch("queue", async () => {
   const store = new UStore<number>();
   await store.init({ identifier: "numbers", kind: "memory" });
 
-  store.queue(async (store) => {
+  store.queue(async () => {
     await time(400);
     store.set("1", 1);
-    return store;
   });
-  store.queue(async (store) => {
+  store.queue(async () => {
     store.set("2", 2);
-    return store;
   });
 
   await time(450);
@@ -291,20 +289,17 @@ await stopwatch("queue", async () => {
   assert.isUndefined(values[3]);
   assert.isUndefined(values[4]);
 
-  store.queue(async (store) => {
+  store.queue(async () => {
     await time(400);
     await store.set("3", 3);
-    return store;
   });
-  store.queue(async (store) => {
+  store.queue(async () => {
     await time(200);
     await store.set("4", 4);
-    return store;
   });
-  store.queue(async (store) => {
+  store.queue(async () => {
     await time(600);
     await store.set("5", 5);
-    return store;
   });
 
   await time(1250);
