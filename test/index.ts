@@ -269,56 +269,47 @@ await stopwatch("update value and expiry conflicts", async () => {
 });
 
 await stopwatch("queue", async () => {
-  const values: number[] = [];
+  const store = new UStore<number>();
+  await store.init({ identifier: "numbers", kind: "memory" });
 
-  // await Promise.all([
-  //   new Promise(async (resolve) => {
-  //     await time(400);
-  //     values.push(1);
-  //     resolve(void 0);
-  //   }),
-  //   new Promise(async (resolve) => {
-  //     values.push(2);
-  //     resolve(void 0);
-  //   }),
-  //   new Promise(async (resolve) => {
-  //     await time(100);
-  //     values.push(3);
-  //     resolve(void 0);
-  //   }),
-  // ]);
-
-  mylist.queue(async () => {
+  store.queue(async (store) => {
     await time(400);
-    values.push(1);
+    store.set("1", 1);
+    return store;
   });
-  mylist.queue(async () => {
-    values.push(2);
+  store.queue(async (store) => {
+    store.set("2", 2);
+    return store;
   });
 
   await time(450);
 
+  let values = await store.all();
   assert.strictEqual(values[0], 1);
   assert.strictEqual(values[1], 2);
   assert.isUndefined(values[2]);
   assert.isUndefined(values[3]);
   assert.isUndefined(values[4]);
 
-  mylist.queue(async () => {
+  store.queue(async (store) => {
     await time(400);
-    values.push(3);
+    await store.set("3", 3);
+    return store;
   });
-  mylist.queue(async () => {
+  store.queue(async (store) => {
     await time(200);
-    values.push(4);
+    await store.set("4", 4);
+    return store;
   });
-  mylist.queue(async () => {
+  store.queue(async (store) => {
     await time(600);
-    values.push(5);
+    await store.set("5", 5);
+    return store;
   });
 
   await time(1250);
 
+  values = await store.all();
   assert.strictEqual(values[0], 1);
   assert.strictEqual(values[1], 2);
   assert.strictEqual(values[2], 3);
