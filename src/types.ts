@@ -11,3 +11,7 @@ export interface Entry<T> {
   expiry: number | null;
   value: T;
 }
+
+export type Editable_Set_Options = { expiry: number };
+
+export type Set_Options = Editable_Set_Options;

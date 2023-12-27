@@ -1,5 +1,10 @@
 import { IDBPDatabase, deleteDB, openDB } from "idb";
-import { Async_Storage, Store } from "./types";
+import {
+  Async_Storage,
+  Editable_Set_Options,
+  Set_Options,
+  Store,
+} from "./types";
 
 export class UStore<T> {
   private _identifier!: string;
@@ -62,7 +67,7 @@ export class UStore<T> {
     return Object.prototype.hasOwnProperty.call(await this._get(), key);
   }
 
-  async set(key: string, value: T, options?: Partial<{ expiry: number }>) {
+  async set(key: string, value: T, options?: Partial<Set_Options>) {
     const store = await this._get();
     store[key] = {
       expiry: options?.expiry ?? null,
@@ -71,16 +76,30 @@ export class UStore<T> {
     await this._set(store);
   }
 
-  async update(key: string, value: Partial<T>) {
+  async update(
+    key: string,
+    {
+      value,
+      expiry,
+    }: Partial<Editable_Set_Options> & {
+      value?: Partial<T>;
+    }
+  ) {
     const store = await this._get();
     if (!store[key]) {
       throw new Error("cannot update non-existing entry");
     }
 
-    store[key].value = {
-      ...store[key].value,
-      ...value,
-    };
+    if (value) {
+      store[key].value = {
+        ...store[key].value,
+        ...value,
+      };
+    }
+    if (expiry) {
+      store[key].expiry = expiry;
+    }
+
     await this._set(store);
   }
 

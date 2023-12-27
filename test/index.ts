@@ -60,16 +60,38 @@ await stopwatch("has", async () => {
 await stopwatch("expiry", async () => {
   const expiry = 200;
 
-  await mylist.set(
-    "enola holmes",
-    { id: 234, slug: "enola-holmes" },
-    { expiry: Date.now() + expiry }
-  );
+  {
+    await mylist.set(
+      "enola holmes",
+      { id: 234, slug: "enola-holmes" },
+      { expiry: Date.now() + expiry }
+    );
 
-  assert.isTrue(await mylist.has("enola holmes"));
+    assert.isTrue(await mylist.has("enola holmes"));
 
-  await time(expiry);
-  assert.isFalse(await mylist.has("enola holmes"));
+    await time(expiry);
+    assert.isFalse(await mylist.has("enola holmes"));
+  }
+
+  {
+    await mylist.set(
+      "enola holmes",
+      { id: 234, slug: "enola-holmes" },
+      { expiry: Date.now() + expiry }
+    );
+
+    assert.isTrue(await mylist.has("enola holmes"));
+
+    await mylist.update("enola holmes", {
+      expiry: Date.now() + expiry * 2,
+    });
+
+    await time(expiry);
+    assert.isTrue(await mylist.has("enola holmes"));
+
+    await time(expiry * 2);
+    assert.isFalse(await mylist.has("enola holmes"));
+  }
 });
 
 await stopwatch("update", async () => {
@@ -79,7 +101,7 @@ await stopwatch("update", async () => {
   assert(rick.id == 5473);
   assert(rick.slug == "rick-and-morty");
 
-  await mylist.update("rick", { id: 42 });
+  await mylist.update("rick", { value: { id: 42 } });
   rick = await mylist.get("rick");
   assert(rick);
 
@@ -95,7 +117,7 @@ await stopwatch("rm", async () => {
 
 await stopwatch("update (error)", async () => {
   try {
-    await mylist.update("rick", { id: 42 });
+    await mylist.update("rick", { value: { id: 42 } });
     assert(0);
   } catch (error) {
     if (error.message != "cannot update non-existing entry") {
