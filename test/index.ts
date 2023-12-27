@@ -82,7 +82,7 @@ await stopwatch("expiry", async () => {
 
     assert.isTrue(await mylist.has("enola holmes"));
 
-    await mylist.update("enola holmes", {
+    await mylist.update("enola holmes", undefined, {
       expiry: Date.now() + expiry * 2,
     });
 
@@ -101,7 +101,7 @@ await stopwatch("update", async () => {
   assert(rick.id == 5473);
   assert(rick.slug == "rick-and-morty");
 
-  await mylist.update("rick", { value: { id: 42 } });
+  await mylist.update("rick", { id: 42 });
   rick = await mylist.get("rick");
   assert(rick);
 
@@ -117,7 +117,7 @@ await stopwatch("rm", async () => {
 
 await stopwatch("update (error)", async () => {
   try {
-    await mylist.update("rick", { value: { id: 42 } });
+    await mylist.update("rick", { id: 42 });
     assert(0);
   } catch (error) {
     if (error.message != "cannot update non-existing entry") {
@@ -221,6 +221,51 @@ await stopwatch("middleware get", async () => {
     await mylist.set("enola", { slug: "enola" });
     assert.strictEqual((await mylist.get("enola"))?.slug, "dirty_enola");
   }
+});
+
+await stopwatch("update value and expiry conflicts", async () => {
+  const mylist = new UStore<{ slug: string; id: number }>();
+  await mylist.init({
+    identifier: "mylist",
+    kind: "memory",
+  });
+
+  await mylist.set(
+    "title",
+    { slug: "enola", id: 2000 },
+    { expiry: Date.now() + 24 * 60 * 60 * 1000 }
+  );
+
+  async function get_and_compare(slug: string, id: number) {
+    const entry = (await mylist.get("title"))!;
+
+    assert.isNotNull(entry);
+    assert.strictEqual(entry.slug, slug);
+    assert.strictEqual(entry.id, id);
+  }
+
+  await get_and_compare("enola", 2000);
+
+  await mylist.update("title", {
+    slug: "rick",
+  });
+
+  await get_and_compare("rick", 2000);
+
+  await mylist.update(
+    "title",
+    {
+      id: 35,
+    },
+    {
+      expiry: Date.now() + 400,
+    }
+  );
+
+  await get_and_compare("rick", 35);
+
+  await time(400);
+  assert.isNull(await mylist.get("title"));
 });
 
 console.log("Done!");

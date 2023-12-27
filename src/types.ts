@@ -7,11 +7,11 @@ export type Async_Storage = {
 
 export type Store<T> = Record<string, Entry<T>>;
 
-export interface Entry<T> {
-  expiry: number | null;
-  value: T;
+export interface Options {
+  expiry: number;
 }
 
-export type Editable_Set_Options = { expiry: number };
-
-export type Set_Options = Editable_Set_Options;
+export interface Entry<T> {
+  value: T;
+  options?: Partial<Options>;
+}

@@ -1,10 +1,5 @@
 import { IDBPDatabase, deleteDB, openDB } from "idb";
-import {
-  Async_Storage,
-  Editable_Set_Options,
-  Set_Options,
-  Store,
-} from "./types";
+import { Async_Storage, Options, Store } from "./types";
 
 export class UStore<T> {
   private _identifier!: string;
@@ -67,38 +62,25 @@ export class UStore<T> {
     return Object.prototype.hasOwnProperty.call(await this._get(), key);
   }
 
-  async set(key: string, value: T, options?: Partial<Set_Options>) {
+  async set(key: string, value: T, options?: Partial<Options>) {
     const store = await this._get();
     store[key] = {
-      expiry: options?.expiry ?? null,
       value,
+      options,
     };
     await this._set(store);
   }
 
-  async update(
-    key: string,
-    {
-      value,
-      expiry,
-    }: Partial<Editable_Set_Options> & {
-      value?: Partial<T>;
-    }
-  ) {
+  async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
     const store = await this._get();
     if (!store[key]) {
       throw new Error("cannot update non-existing entry");
     }
 
-    if (value) {
-      store[key].value = {
-        ...store[key].value,
-        ...value,
-      };
-    }
-    if (expiry) {
-      store[key].expiry = expiry;
-    }
+    store[key] = {
+      value: { ...store[key].value, ...value },
+      options: { ...store[key].options, ...options },
+    };
 
     await this._set(store);
   }
@@ -156,7 +138,7 @@ export class UStore<T> {
 
   private async _rm_expired(store: Store<T>): Promise<Store<T>> {
     Object.entries(store).forEach(([key, value]) => {
-      if (value.expiry && Date.now() >= value.expiry) {
+      if (value.options?.expiry && Date.now() >= value.options.expiry) {
         delete store[key];
       }
     });
