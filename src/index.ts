@@ -19,6 +19,22 @@ export class UStore<T> {
     this.on_change = on_change;
   }
 
+  private _queue: (() => Promise<void>)[] = [];
+
+  queue(fn: () => Promise<void>) {
+    this._queue.push(async () => {
+      await fn();
+      this._queue.shift();
+      if (this._queue.length > 0) {
+        this._queue[0]();
+      }
+    });
+
+    if (this._queue.length == 1) {
+      this._queue[0]();
+    }
+  }
+
   async init({
     identifier,
     kind,
