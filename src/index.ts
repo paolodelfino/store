@@ -2,11 +2,15 @@ import { IDBPDatabase, deleteDB, openDB } from "idb";
 import { Async_Storage, Options, Store } from "./types";
 
 export class UStore<T> {
-  private _identifier!: string;
-  kind!: Parameters<typeof this.init>["0"]["kind"];
   private _storage!: Async_Storage;
-  on_change: ((store: UStore<T>) => Promise<void>)[] = [];
   private _middlewares: Parameters<typeof this.init>["0"]["middlewares"];
+  private _patches: Store<T>[] = [];
+  private _patch_timeout?: number;
+
+  identifier!: string;
+  kind!: Parameters<typeof this.init>["0"]["kind"];
+
+  on_change: ((store: UStore<T>) => Promise<void>)[] = [];
 
   private async _on_change() {
     const on_change = this.on_change;
@@ -23,7 +27,15 @@ export class UStore<T> {
 
   queue(fn: () => Promise<void>) {
     this._queue.push(async () => {
+      const _set = this._set;
+      this._set = async (store: Store<T>) => {
+        this._push_patch(store);
+      };
+
       await fn();
+
+      this._set = _set;
+
       this._queue.shift()?.();
     });
 
@@ -41,7 +53,7 @@ export class UStore<T> {
       get: (store: UStore<T>, key: string) => Promise<string>;
     }>;
   }) {
-    this._identifier = identifier;
+    this.identifier = identifier;
     this.kind = kind;
     if (kind == "local") {
       this._storage = localStorage as unknown as Async_Storage;
@@ -51,7 +63,7 @@ export class UStore<T> {
       this._storage = new Memory_Storage();
     } else {
       this._storage = new IndexedDB_Storage();
-      await (this._storage as IndexedDB_Storage).init(this._identifier);
+      await (this._storage as IndexedDB_Storage).init(this.identifier);
     }
     this._middlewares = middlewares;
   }
@@ -110,7 +122,7 @@ export class UStore<T> {
     if (this.kind == "indexeddb") {
       await (this._storage as IndexedDB_Storage).delete();
     } else {
-      await this._storage.removeItem(this._identifier);
+      await this._storage.removeItem(this.identifier);
     }
   }
 
@@ -132,7 +144,7 @@ export class UStore<T> {
 
   private async _get() {
     const store = JSON.parse(
-      (await this._storage.getItem(this._identifier)) ?? "null"
+      (await this._storage.getItem(this.identifier)) ?? "null"
     ) as Store<T> | null;
 
     if (store) {
@@ -143,7 +155,7 @@ export class UStore<T> {
   }
 
   private async _set(store: Store<T>) {
-    await this._storage.setItem(this._identifier, JSON.stringify(store));
+    await this._storage.setItem(this.identifier, JSON.stringify(store));
     await this._on_change();
   }
 
@@ -161,6 +173,26 @@ export class UStore<T> {
     const store: Store<T> = {};
     await this._set(store);
     return store;
+  }
+
+  private _push_patch(patch: Store<T>) {
+    this._patches.push(patch);
+
+    clearTimeout(this._patch_timeout);
+    this._patch_timeout = setTimeout(async () => {
+      for (let i = 1; i < this._patches.length; ++i) {
+        for (const key of Object.keys(this._patches[i])) {
+          this._patches[0][key] = this._patches[i][key];
+        }
+      }
+
+      await this._storage.setItem(
+        this.identifier,
+        JSON.stringify(this._patches[0])
+      );
+      this._patches = [];
+      await this._on_change();
+    }, 100);
   }
 }
 
