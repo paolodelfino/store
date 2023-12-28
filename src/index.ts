@@ -9,7 +9,7 @@ export namespace ustore {
     identifier!: Param<typeof this.init, 0, "identifier">;
     kind!: Param<typeof this.init, 0, "kind">;
 
-    async init({
+    init({
       identifier,
       kind,
       middlewares,
@@ -95,11 +95,11 @@ export namespace ustore {
       this._set(JSON.parse(store));
     }
 
-    length() {
+    get length() {
       return Object.keys(this._get()).length;
     }
 
-    all() {
+    values() {
       return Object.entries(this._get()).map(([_, entry]) => entry.value);
     }
 

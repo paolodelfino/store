@@ -152,9 +152,11 @@ await stopwatch("delete", async () => {
       assert(0, "Should not succeed");
     } catch (error) {}
 
-    mylist.init({ identifier: "mylist", kind: "local" }).catch(() => {
+    try {
+      mylist.init({ identifier: "mylist", kind: "local" });
+    } catch (error) {
       assert(0, "Should not fail");
-    });
+    }
   } else {
     assert.isFalse(mylist.has("enola"));
   }
@@ -168,16 +170,16 @@ await stopwatch("import, export", async () => {
   assert.isTrue(mylist.has("rick"));
 
   const newstore = new ustore.Sync();
-  await newstore.init({ identifier: "newstore", kind: "local" });
-  assert((await newstore.length()) == 0);
+  newstore.init({ identifier: "newstore", kind: "local" });
+  assert(newstore.length == 0);
 
-  await newstore.import(mylist.export());
+  newstore.import(mylist.export());
   // @ts-ignore
-  assert.strictEqual(await newstore.length(), 2);
+  assert.strictEqual(newstore.length, 2);
 });
 
 await stopwatch("all", async () => {
-  const titles = mylist.all();
+  const titles = mylist.values();
   assert(titles.length == 2);
   assert(titles[0].slug == "enola-holmes");
   assert(titles[1].slug == "rick-and-morty");
