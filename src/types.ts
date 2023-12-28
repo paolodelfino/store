@@ -1,9 +1,8 @@
-export type Async_Storage = {
-  clear(): Promise<void>;
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-  removeItem(key: string): Promise<void>;
-};
+export type Param<
+  T extends (...args: any) => any,
+  U extends number,
+  V extends keyof Parameters<T>[U] | undefined = undefined
+> = V extends keyof Parameters<T>[U] ? Parameters<T>[U][V] : Parameters<T>[U];
 
 export type Store<T> = Record<string, Entry<T>>;
 
