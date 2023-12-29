@@ -1,15 +1,16 @@
-import { Options, Param, Store } from "./types";
+import { IDBPDatabase, openDB } from "idb";
+import { Constr, Options, Param, Store } from "./types";
 import { Memory_Storage } from "./utils";
 
 export namespace ustore {
-  export class Sync<T> {
+  export class Sync<T extends object> {
     private _storage!: Storage;
-    private _middlewares: Param<typeof this.init, 0, "middlewares">;
+    private _middlewares: Constr<typeof Sync<T>, 0, "middlewares">;
 
-    identifier!: Param<typeof this.init, 0, "identifier">;
-    kind!: Param<typeof this.init, 0, "kind">;
+    identifier: Constr<typeof Sync<T>, 0, "identifier">;
+    kind: Constr<typeof Sync<T>, 0, "kind">;
 
-    init({
+    constructor({
       identifier,
       kind,
       middlewares,
@@ -117,6 +118,222 @@ export namespace ustore {
 
     private _set(store: Store<T>) {
       this._storage.setItem(this.identifier, JSON.stringify(store));
+    }
+
+    private _rm_expired(store: Store<T>): Store<T> {
+      Object.entries(store).forEach(([key, value]) => {
+        if (value.options?.expiry && Date.now() >= value.options.expiry) {
+          delete store[key];
+        }
+      });
+      this._set(store);
+      return store;
+    }
+
+    private _create_new(): Store<T> {
+      const store: Store<T> = {};
+      this._set(store);
+      return store;
+    }
+  }
+
+  export class Async<T extends object | string> {
+    private _db!: IDBPDatabase;
+    private _middlewares: Param<typeof this.init, 0, "middlewares">;
+    private _type!: "o" | "s";
+
+    identifier!: Param<typeof this.init, 0, "identifier">;
+
+    async init({
+      identifier,
+      middlewares,
+      type,
+    }: {
+      type: "object" | "string";
+      identifier: string;
+      middlewares?: Partial<{
+        get: (store: Async<T>, key: string) => string;
+      }>;
+    }) {
+      this._type = type == "object" ? "o" : "s";
+      this.identifier = identifier;
+      this._middlewares = middlewares;
+      this._db = await openDB(identifier, 1, {
+        upgrade(database) {
+          database.createObjectStore(identifier);
+        },
+      });
+    }
+
+    async get(key: string) /* : Promise<T | undefined> */ {
+      const table = this._db.transaction(this.identifier, "readonly", {
+        durability: "relaxed",
+      }).store;
+
+      const o = {};
+
+      let cursor = await table.openCursor();
+      while (cursor) {
+        const key_str = cursor.key.toString();
+        if (key_str.startsWith(`${key}`)) {
+          // o[key_str.slice()] = cursor.value;
+        }
+
+        cursor = await cursor.continue();
+      }
+
+      // if (this._middlewares?.get) {
+      //   const middleware_get = this._middlewares.get;
+      //   this._middlewares.get = undefined;
+
+      //   // key = middleware_get(this, key);
+
+      //   this._middlewares.get = middleware_get;
+      // }
+      // const store = this._get();
+      // return store[key]?.value;
+    }
+
+    async has(key: string) {
+      const table = this._db.transaction(this.identifier, "readonly", {
+        durability: "relaxed",
+      }).store;
+
+      let cursor = await table.openCursor();
+      if (this._type == "o") {
+        while (cursor) {
+          if (cursor.key.toString() == key) {
+            return true;
+          }
+
+          const sep = cursor.value.indexOf("-");
+          const noptions = Number(cursor.value.slice(0, sep));
+          const nprops = Number(cursor.value.slice(sep + 1));
+
+          cursor = await cursor.advance(noptions + nprops + 1);
+        }
+      } else {
+        while (cursor) {
+          const cur_key = cursor.key.toString();
+          if (cur_key == key) {
+            return true;
+          }
+
+          const sep = cur_key.indexOf("-");
+          const noptions = Number(cur_key.slice(0, sep));
+
+          cursor = await cursor.advance(noptions + 1);
+        }
+      }
+
+      return false;
+    }
+
+    async set(key: string, value: T, options: Partial<Options> = {}) {
+      if (await this.has(key)) {
+        throw new Error(`cannot set a value of a pre-existing key: "${key}"`);
+      }
+
+      const table = this._db.transaction(this.identifier, "readwrite", {
+        durability: "relaxed",
+      }).store;
+
+      if (this._type == "o") {
+        await table.add(
+          `${Object.keys(options).length}-${Object.keys(value).length}`,
+          key
+        );
+      } else {
+        await table.add(`${Object.keys(options).length}-${value}`, key);
+      }
+
+      for (const option in options) {
+        await table.add(
+          options[option as keyof NonNullable<Param<typeof this.set, 2>>],
+          `${key}-${option}`
+        );
+      }
+
+      if (this._type == "o") {
+        for (const prop in value) {
+          await table.add(value[prop], `${key}-${prop}`);
+        }
+      }
+    }
+
+    async debug() {
+      const table = this._db.transaction(this.identifier).store;
+
+      let cursor = await table.openCursor();
+      console.log("DEBUG");
+      while (cursor) {
+        console.log(`${cursor.key}: ${cursor.value}`);
+
+        cursor = await cursor.continue();
+      }
+    }
+
+    update(key: string, value?: Partial<T>, options?: Partial<Options>) {
+      const store = this._get();
+      if (!store[key]) {
+        throw new Error("cannot update non-existing entry");
+      }
+
+      // store[key] = {
+      //   value: { ...store[key].value, ...value },
+      //   options: { ...store[key].options, ...options },
+      // };
+
+      this._set(store);
+    }
+
+    rm(key: string) {
+      const store = this._get();
+      delete store[key];
+      this._set(store);
+    }
+
+    async clear() {
+      const t = this._db.transaction(this.identifier, "readwrite");
+      const table = t.objectStore(this.identifier);
+
+      await table.clear();
+    }
+
+    delete() {
+      // this._db.removeItem(this.identifier);
+    }
+
+    export() {
+      return JSON.stringify(this._get());
+    }
+
+    import(store: string) {
+      this._set(JSON.parse(store));
+    }
+
+    get length() {
+      return Object.keys(this._get()).length;
+    }
+
+    values() {
+      return Object.entries(this._get()).map(([_, entry]) => entry.value);
+    }
+
+    private _get() {
+      // const store = JSON.parse(
+      //   this._db.getItem(this.identifier) ?? "null"
+      // ) as Store<T> | null;
+
+      // if (store) {
+      //   return this._rm_expired(store);
+      // }
+
+      return this._create_new();
+    }
+
+    private _set(store: Store<T>) {
+      // this._db.setItem(this.identifier, JSON.stringify(store));
     }
 
     private _rm_expired(store: Store<T>): Store<T> {

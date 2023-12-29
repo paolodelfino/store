@@ -11,31 +11,86 @@ const stopwatch = async (label: string, fn: any) => {
   console.timeEnd(label);
 };
 
-const mylist = new ustore.Sync<{ slug: string; id: number }>();
-mylist.init({
+const mylist = new ustore.Sync<{ slug: string; id: number }>({
   identifier: "mylist",
   kind: "local",
 });
 
-// await stopwatch("indexeddb", async () => {
-//   const store1 = new ustore.Sync();
-//   await store1.init({ identifier: "store1", kind: "indexeddb" });
+const amylist = new ustore.Async<{ slug: string; id: number }>();
+await amylist.init({
+  type: "object",
+  identifier: "mylist",
+});
 
-//   const store2 = new ustore.Sync();
-//   await store2.init({ identifier: "store2", kind: "indexeddb" });
+// {
+//   await amylist.set("234", { id: 234, slug: "enola-holmes" });
+//   await amylist.set("42", { id: 42, slug: "rick-and-morty" });
+//   await amylist.debug();
 
-//   const dbs = await indexedDB.databases();
-//   const db1 = dbs.find((db) => db.name == "store1");
-//   assert.isDefined(db1);
-//   const db2 = dbs.find((db) => db.name == "store2");
-//   assert.isDefined(db2);
+//   // console.log(await amylist.has("42"));
+//   // console.log(await amylist.has("234"));
 
-//   for (const entry_db of dbs) {
-//     const db = await openDB(entry_db.name!, entry_db.version);
-//     const values = await db.getAll(entry_db.name!);
-//     assert.strictEqual(values.length, 0);
+//   const db = await openDB("mylist");
+//   const table = db.transaction("mylist").store;
+//   let cursor = await table.openCursor();
+
+//   console.log("CURSOR");
+//   while (cursor) {
+//     if (cursor.key.toString() == "42") {
+//       console.log("found");
+//       break;
+//     }
+
+//     const sep = cursor.value.indexOf("-");
+//     const noptions = Number(cursor.value.slice(0, sep));
+//     const nprops = Number(cursor.value.slice(sep + 1));
+
+//     cursor = await cursor.advance(noptions + nprops + 1);
 //   }
-// });
+// }
+// exit(0);
+
+await stopwatch("clear (async)", async () => {
+  await amylist.set("234", { id: 234, slug: "enola-holmes" });
+  assert.isTrue(await amylist.has("234"));
+
+  await amylist.debug();
+
+  await amylist.set("rick", { id: 42, slug: "rick-and-morty" });
+  await amylist.debug();
+  assert.isTrue(await amylist.has("rick"));
+
+  await amylist.clear();
+  assert.isFalse(await amylist.has("enola"));
+  assert.isFalse(await amylist.has("rick"));
+});
+
+await stopwatch("set (async)", async () => {
+  await amylist.set("rick", { id: 5473, slug: "rick-and-morty" });
+  assert.isTrue(await amylist.has("rick"));
+
+  await amylist
+    .set("rick", { id: 5473, slug: "rick-and-morty" })
+    .then(() => assert(0, "Should not succeed"))
+    .catch((err) => {
+      assert.strictEqual(
+        err.message,
+        'cannot set a value of a pre-existing key: "rick"'
+      );
+    });
+
+  await amylist.clear();
+});
+
+await stopwatch("has (async)", async () => {
+  assert.isFalse(await amylist.has("rick"));
+
+  await amylist.set("rick", { id: 5473, slug: "rick-and-morty" });
+
+  assert.isTrue(await amylist.has("rick"));
+
+  await amylist.clear();
+});
 
 await stopwatch("get", async () => {
   assert.isUndefined(mylist.get("rick"));
@@ -152,11 +207,11 @@ await stopwatch("delete", async () => {
       assert(0, "Should not succeed");
     } catch (error) {}
 
-    try {
-      mylist.init({ identifier: "mylist", kind: "local" });
-    } catch (error) {
-      assert(0, "Should not fail");
-    }
+    // try {
+    //   mylist.init({ identifier: "mylist", kind: "local" });
+    // } catch (error) {
+    //   assert(0, "Should not fail");
+    // }
   } else {
     assert.isFalse(mylist.has("enola"));
   }
@@ -169,8 +224,7 @@ await stopwatch("import, export", async () => {
   mylist.set("rick", { id: 42, slug: "rick-and-morty" });
   assert.isTrue(mylist.has("rick"));
 
-  const newstore = new ustore.Sync();
-  newstore.init({ identifier: "newstore", kind: "local" });
+  const newstore = new ustore.Sync({ identifier: "newstore", kind: "local" });
   assert(newstore.length == 0);
 
   newstore.import(mylist.export());
@@ -187,8 +241,7 @@ await stopwatch("all", async () => {
 
 await stopwatch("middleware get", async () => {
   {
-    const mylist = new ustore.Sync<{ slug: string }>();
-    mylist.init({
+    const mylist = new ustore.Sync<{ slug: string }>({
       identifier: "mylist",
       kind: "local",
       middlewares: {
@@ -203,8 +256,7 @@ await stopwatch("middleware get", async () => {
   }
 
   {
-    const mylist = new ustore.Sync<{ slug: string }>();
-    mylist.init({
+    const mylist = new ustore.Sync<{ slug: string }>({
       identifier: "mylist",
       kind: "local",
       middlewares: {
@@ -222,9 +274,8 @@ await stopwatch("middleware get", async () => {
   }
 });
 
-await stopwatch("update value and expiry conflicts", async () => {
-  const mylist = new ustore.Sync<{ slug: string; id: number }>();
-  mylist.init({
+await stopwatch("update both value & options", async () => {
+  const mylist = new ustore.Sync<{ slug: string; id: number }>({
     identifier: "mylist",
     kind: "memory",
   });
