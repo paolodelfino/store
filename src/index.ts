@@ -165,21 +165,50 @@ export namespace ustore {
       });
     }
 
-    async get(key: string) /* : Promise<T | undefined> */ {
+    async get(key: string) {
+      if (!(await this.has(key))) {
+        return;
+      }
+
       const table = this._db.transaction(this.identifier, "readonly", {
         durability: "relaxed",
       }).store;
 
-      const o = {};
-
       let cursor = await table.openCursor();
-      while (cursor) {
-        const key_str = cursor.key.toString();
-        if (key_str.startsWith(`${key}`)) {
-          // o[key_str.slice()] = cursor.value;
-        }
+      if (this._type == "o") {
+        while (cursor) {
+          const sep = cursor.value.indexOf("-");
+          const noptions = Number(cursor.value.slice(0, sep));
+          const nprops = Number(cursor.value.slice(sep + 1));
 
-        cursor = await cursor.continue();
+          if (cursor.key == key) {
+            const o = {};
+
+            await cursor.advance(noptions + 1);
+
+            for (let i = 0; i < nprops; ++i, await cursor.continue()) {
+              // @ts-ignore
+              o[cursor.key.substring(key.length + 1)] = cursor.value;
+            }
+
+            return o as T;
+          }
+
+          cursor = await cursor.advance(noptions + nprops + 1);
+        }
+      } else {
+        while (cursor) {
+          const sep = cursor.value.indexOf("-");
+          const noptions = Number(cursor.value.slice(0, sep));
+
+          if (cursor.key == key) {
+            await cursor.advance(noptions + 1);
+
+            return cursor.value.slice(sep + 1) as T;
+          }
+
+          cursor = await cursor.advance(noptions + 1);
+        }
       }
 
       // if (this._middlewares?.get) {
@@ -202,7 +231,7 @@ export namespace ustore {
       let cursor = await table.openCursor();
       if (this._type == "o") {
         while (cursor) {
-          if (cursor.key.toString() == key) {
+          if (cursor.key == key) {
             return true;
           }
 
@@ -214,13 +243,12 @@ export namespace ustore {
         }
       } else {
         while (cursor) {
-          const cur_key = cursor.key.toString();
-          if (cur_key == key) {
+          if (cursor.key.toString() == key) {
             return true;
           }
 
-          const sep = cur_key.indexOf("-");
-          const noptions = Number(cur_key.slice(0, sep));
+          const sep = cursor.value.indexOf("-");
+          const noptions = Number(cursor.value.slice(0, sep));
 
           cursor = await cursor.advance(noptions + 1);
         }

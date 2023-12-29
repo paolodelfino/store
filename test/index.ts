@@ -299,22 +299,22 @@ const stopwatch = async (label: string, fn: any) => {
   const mylist = new ustore.Async<{ slug: string; id: number }>();
   await mylist.init({
     type: "object",
-    identifier: "omylist",
+    identifier: "mylist",
   });
 
   const history = new ustore.Async<string>();
   await history.init({
     type: "string",
-    identifier: "smylist",
+    identifier: "history",
   });
 
   // {
-  //   await amylist.set("234", { id: 234, slug: "enola-holmes" });
-  //   await amylist.set("42", { id: 42, slug: "rick-and-morty" });
-  //   await amylist.debug();
+  //   await mylist.set("234", { id: 234, slug: "enola-holmes" });
+  //   await mylist.set("42", { id: 42, slug: "rick-and-morty" });
+  //   await mylist.debug();
 
-  //   // console.log(await amylist.has("42"));
-  //   // console.log(await amylist.has("234"));
+  //   // console.log(await mylist.has("42"));
+  //   // console.log(await mylist.has("234"));
 
   //   const db = await openDB("mylist");
   //   const table = db.transaction("mylist").store;
@@ -322,7 +322,7 @@ const stopwatch = async (label: string, fn: any) => {
 
   //   console.log("CURSOR");
   //   while (cursor) {
-  //     if (cursor.key.toString() == "42") {
+  //     if (cursor.key == "42") {
   //       console.log("found");
   //       break;
   //     }
@@ -420,16 +420,16 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  // await stopwatch("get (async)", async () => {
-  //   assert.isUndefined(await amylist.get("rick"));
+  await stopwatch("get (async)", async () => {
+    assert.isUndefined(await mylist.get("543"));
 
-  //   await amylist.set("rick", { id: 5473, slug: "rick-and-morty" });
-  //   const rick = (await amylist.get("rick"))!;
-  //   assert.isDefined(rick);
+    await mylist.set("543", { id: 5473, slug: "rick-and-morty" });
+    const rick = (await mylist.get("543"))!;
+    assert.isDefined(rick);
 
-  //   assert.strictEqual(rick.id, 5473);
-  //   assert.strictEqual(rick.slug, "rick-and-morty");
-  // });
+    assert.strictEqual(rick.id, 5473);
+    assert.strictEqual(rick.slug, "rick-and-morty");
+  });
 }
 
 console.log("Done!");
