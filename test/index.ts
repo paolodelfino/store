@@ -421,14 +421,128 @@ const stopwatch = async (label: string, fn: any) => {
   });
 
   await stopwatch("get (async)", async () => {
-    assert.isUndefined(await mylist.get("543"));
+    {
+      assert.isUndefined(await mylist.get("543"));
 
-    await mylist.set("543", { id: 5473, slug: "rick-and-morty" });
-    const rick = (await mylist.get("543"))!;
-    assert.isDefined(rick);
+      await mylist.set("543", { id: 5473, slug: "rick-and-morty" });
+      const rick = (await mylist.get("543"))!;
+      assert.isDefined(rick);
 
-    assert.strictEqual(rick.id, 5473);
-    assert.strictEqual(rick.slug, "rick-and-morty");
+      assert.strictEqual(rick.id, 5473);
+      assert.strictEqual(rick.slug, "rick-and-morty");
+
+      await mylist.clear();
+    }
+
+    {
+      assert.isUndefined(await history.get("rick"));
+
+      await history.set("rick", "rick");
+      const rick = (await history.get("rick"))!;
+      assert.isDefined(rick);
+
+      assert.strictEqual(rick, "rick");
+
+      await history.clear();
+    }
+  });
+
+  await stopwatch("middleware get (async)", async () => {
+    {
+      {
+        const mylist = new ustore.Async<{ slug: string }>();
+        await mylist.init({
+          type: "object",
+          identifier: "middleware-mylist",
+          middlewares: {
+            async get(store, key) {
+              // To test there's no circular dependency
+              await store.get(key);
+
+              return "enola";
+            },
+          },
+        });
+
+        await mylist.set("enola", { slug: "enola" });
+        const fakerick = (await mylist.get("rick"))!;
+        assert.isDefined(fakerick);
+        assert.strictEqual(fakerick.slug, "enola");
+
+        await mylist.clear();
+      }
+
+      // TODO: Turn on later when update() will be available because
+      //       we should use it against store.set
+      // {
+      //   const mylist = new ustore.Async<{ slug: string }>();
+      //   await mylist.init({
+      //     type: "object",
+      //     identifier: "middleware-mylist",
+      //     middlewares: {
+      //       async get(store, key) {
+      //         await store.set(key, {
+      //           slug: "dirty_" + (await store.get(key))!.slug,
+      //         });
+
+      //         return key;
+      //       },
+      //     },
+      //   });
+
+      //   await mylist.set("enola", { slug: "enola" });
+      //   assert.strictEqual((await mylist.get("enola"))!.slug, "dirty_enola");
+
+      //   await mylist.clear();
+      // }
+    }
+
+    {
+      {
+        const history = new ustore.Async<string>();
+        await history.init({
+          type: "string",
+          identifier: "middleware-history",
+          middlewares: {
+            async get(store, key) {
+              // To test there's no circular dependency
+              await store.get(key);
+
+              return "enola";
+            },
+          },
+        });
+
+        await history.set("enola", "enola");
+        const fakerick = (await history.get("rick"))!;
+        assert.isDefined(fakerick);
+        assert.strictEqual(fakerick, "enola");
+
+        await history.clear();
+      }
+
+      // TODO: Turn on later when update() will be available because
+      //       we should use it against store.set
+      // {
+      //   const history = new ustore.Async<string>();
+      //   await history.init({
+      //     type: "string",
+      //     identifier: "middleware-history",
+      //     middlewares: {
+      //       async get(store, key) {
+      //         await store.set(key, "dirty_" + (await store.get(key)));
+
+      //         return key;
+      //       },
+      //     },
+      //   });
+
+      //   await history.set("enola", "enola");
+      //   assert.strictEqual((await history.get("enola"))!, "dirty_enola");
+
+      //   await history.clear();
+      // }
+    }
   });
 }
 

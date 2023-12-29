@@ -152,7 +152,7 @@ export namespace ustore {
       type: "object" | "string";
       identifier: string;
       middlewares?: Partial<{
-        get: (store: Async<T>, key: string) => string;
+        get: (store: Async<T>, key: string) => Promise<string>;
       }>;
     }) {
       this._type = type == "object" ? "o" : "s";
@@ -166,6 +166,15 @@ export namespace ustore {
     }
 
     async get(key: string) {
+      if (this._middlewares?.get) {
+        const middleware_get = this._middlewares.get;
+        delete this._middlewares["get"];
+
+        key = await middleware_get(this, key);
+
+        this._middlewares.get = middleware_get;
+      }
+
       if (!(await this.has(key))) {
         return;
       }
@@ -174,7 +183,7 @@ export namespace ustore {
         durability: "relaxed",
       }).store;
 
-      let cursor = await table.openCursor();
+      const cursor = await table.openCursor();
       if (this._type == "o") {
         while (cursor) {
           const sep = cursor.value.indexOf("-");
@@ -194,7 +203,7 @@ export namespace ustore {
             return o as T;
           }
 
-          cursor = await cursor.advance(noptions + nprops + 1);
+          await cursor.advance(noptions + nprops + 1);
         }
       } else {
         while (cursor) {
@@ -202,25 +211,15 @@ export namespace ustore {
           const noptions = Number(cursor.value.slice(0, sep));
 
           if (cursor.key == key) {
-            await cursor.advance(noptions + 1);
+            const str = cursor.value.slice(sep + 1);
 
-            return cursor.value.slice(sep + 1) as T;
+            await cursor.advance(noptions + 1);
+            return str as T;
           }
 
-          cursor = await cursor.advance(noptions + 1);
+          await cursor.advance(noptions + 1);
         }
       }
-
-      // if (this._middlewares?.get) {
-      //   const middleware_get = this._middlewares.get;
-      //   this._middlewares.get = undefined;
-
-      //   // key = middleware_get(this, key);
-
-      //   this._middlewares.get = middleware_get;
-      // }
-      // const store = this._get();
-      // return store[key]?.value;
     }
 
     async has(key: string) {
