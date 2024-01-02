@@ -317,8 +317,10 @@ export namespace ustore {
       return (await table.getAllKeys()).length;
     }
 
-    values() {
-      return Object.entries(this._get()).map(([_, entry]) => entry.value);
+    async values() {
+      const table = this._db.transaction(this.identifier, "readwrite").store;
+
+      return (await table.getAll()).map((entry) => entry.value) as T[];
     }
 
     private _get() {

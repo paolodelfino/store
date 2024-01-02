@@ -163,7 +163,7 @@ const stopwatch = async (label: string, fn: any) => {
     assert.strictEqual(newstore.length, 2);
   });
 
-  await stopwatch("all", async () => {
+  await stopwatch("values", async () => {
     const titles = mylist.values();
     assert(titles.length == 2);
     assert(titles[0].slug == "enola-holmes");
@@ -714,6 +714,32 @@ const stopwatch = async (label: string, fn: any) => {
 
       await history.clear();
       await newstore.clear();
+    }
+  });
+
+  await stopwatch("values (async)", async () => {
+    {
+      await mylist.set("234", { id: 234, slug: "enola-holmes" });
+      await mylist.set("42", { id: 42, slug: "rick-and-morty" });
+
+      const entries = await mylist.values();
+      assert.strictEqual(entries.length, 2);
+      assert.strictEqual(entries[0].slug, "enola-holmes");
+      assert.strictEqual(entries[1].slug, "rick-and-morty");
+
+      await mylist.clear();
+    }
+
+    {
+      await history.set("enola", "enola");
+      await history.set("rick", "rick");
+
+      const entries = await history.values();
+      assert.strictEqual(entries.length, 2);
+      assert.strictEqual(entries[0], "enola");
+      assert.strictEqual(entries[1], "rick");
+
+      await history.clear();
     }
   });
 }
