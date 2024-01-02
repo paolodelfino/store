@@ -1,5 +1,4 @@
 import { IDBPDatabase, deleteDB, openDB } from "idb";
-import { Constr, Entry, Middlewares, Options, Param, Store } from "./types";
 import { Memory_Storage } from "./utils";
 
 export namespace ustore {
@@ -341,4 +340,35 @@ export namespace ustore {
       }
     }
   }
+
+  type Param<
+    T extends (...args: any) => any,
+    U extends number,
+    V extends keyof Parameters<T>[U] | undefined = undefined
+  > = V extends keyof Parameters<T>[U] ? Parameters<T>[U][V] : Parameters<T>[U];
+
+  type Constr<
+    T extends abstract new (...args: any) => any,
+    U extends number,
+    V extends keyof ConstructorParameters<T>[U] | undefined = undefined
+  > = V extends keyof ConstructorParameters<T>[U]
+    ? ConstructorParameters<T>[U][V]
+    : ConstructorParameters<T>[U];
+
+  type Store<T> = Record<string, Entry<T>>;
+
+  interface Options {
+    expiry: number;
+  }
+
+  interface Entry<T> {
+    value: T;
+    options?: Partial<Options>;
+  }
+
+  type Middlewares<T extends object | string> =
+    | Partial<{
+        get: (store: ustore.Async<T>, key: string) => Promise<string>;
+      }>
+    | undefined;
 }
