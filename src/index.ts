@@ -1,5 +1,5 @@
 import { IDBPDatabase, deleteDB, openDB } from "idb";
-import { Constr, Middlewares, Options, Param, Store } from "./types";
+import { Constr, Entry, Middlewares, Options, Param, Store } from "./types";
 import { Memory_Storage } from "./utils";
 
 export namespace ustore {
@@ -282,16 +282,39 @@ export namespace ustore {
       await deleteDB(this.identifier);
     }
 
-    export() {
-      return JSON.stringify(this._get());
+    async export() {
+      const table = this._db.transaction(this.identifier, "readonly").store;
+      const set = new Map<string, Entry<T>>();
+
+      let cursor = await table.openCursor();
+      while (cursor) {
+        set.set(cursor.key as string, cursor.value);
+
+        cursor = await cursor.continue();
+      }
+
+      return set;
     }
 
-    import(store: string) {
-      this._set(JSON.parse(store));
+    async import(
+      set: Awaited<ReturnType<typeof this.export>>,
+      merge?: boolean
+    ) {
+      const table = this._db.transaction(this.identifier, "readwrite").store;
+
+      if (!merge) {
+        await table.clear();
+      }
+
+      for (const [key, value] of set) {
+        await table.put(value, key);
+      }
     }
 
-    get length() {
-      return Object.keys(this._get()).length;
+    async length() {
+      const table = this._db.transaction(this.identifier, "readwrite").store;
+
+      return (await table.getAllKeys()).length;
     }
 
     values() {

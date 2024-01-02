@@ -614,8 +614,106 @@ const stopwatch = async (label: string, fn: any) => {
       assert.isUndefined(
         (await indexedDB.databases()).find((db) => db.name == "history")
       );
+
       history = new ustore.Async<string>();
       await history.init("history");
+    }
+  });
+
+  await stopwatch("length (async)", async () => {
+    {
+      assert.strictEqual(await mylist.length(), 0);
+
+      await mylist.set("100", { slug: "enola-holmes", id: 100 });
+
+      assert.strictEqual(await mylist.length(), 1);
+
+      await mylist.clear();
+    }
+
+    {
+      assert.strictEqual(await history.length(), 0);
+
+      await history.set("enola", "enola");
+
+      assert.strictEqual(await history.length(), 1);
+
+      await history.clear();
+    }
+  });
+
+  await stopwatch("import, export (async)", async () => {
+    {
+      await mylist.set("234", { id: 234, slug: "enola-holmes" });
+      await mylist.set("42", { id: 42, slug: "rick-and-morty" });
+
+      const newstore = new ustore.Async<{
+        slug: string;
+        id: number;
+      }>();
+      await newstore.init("newstore");
+
+      {
+        assert.strictEqual(await newstore.length(), 0);
+        await newstore.import(await mylist.export());
+        assert.strictEqual(await newstore.length(), 2);
+      }
+
+      {
+        await newstore.rm("234");
+        await newstore.update("42", { id: 40 });
+        await newstore.set("100", { id: 100, slug: "few" });
+
+        assert.strictEqual(await newstore.length(), 2);
+
+        assert.strictEqual((await mylist.get("42"))?.id, 42);
+
+        assert.strictEqual(await mylist.length(), 2);
+        await mylist.import(await newstore.export(), true);
+        assert.strictEqual(await mylist.length(), 3);
+
+        assert.isDefined(await mylist.get("234"));
+        assert.strictEqual((await mylist.get("42"))?.id, 40);
+        assert.isDefined(await mylist.get("100"));
+      }
+
+      await mylist.clear();
+      await newstore.clear();
+    }
+
+    {
+      await history.set("enola", "enola");
+      await history.set("rick", "rick");
+
+      const newstore = new ustore.Async<string>();
+      await newstore.init("newstore");
+
+      {
+        assert.strictEqual(await newstore.length(), 0);
+        await newstore.import(await history.export());
+        assert.strictEqual(await newstore.length(), 2);
+      }
+
+      {
+        await newstore.rm("enola");
+        await newstore.update("rick", "rick and morty");
+        await newstore.set("few", "few");
+
+        assert.strictEqual(await newstore.length(), 2);
+
+        assert.strictEqual(await history.get("rick"), "rick");
+
+        assert.strictEqual(await history.length(), 2);
+        await history.import(await newstore.export(), true);
+        assert.strictEqual(await history.length(), 3);
+
+        assert.isDefined(await history.get("enola"));
+        assert.strictEqual(await history.get("rick"), "rick and morty");
+        assert.isDefined(await history.get("few"));
+      }
+
+      await history.clear();
+      await newstore.clear();
     }
   });
 }
