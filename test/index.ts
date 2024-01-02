@@ -292,10 +292,10 @@ const stopwatch = async (label: string, fn: any) => {
 }
 
 {
-  const mylist = new ustore.Async<{ slug: string; id: number }>();
+  let mylist = new ustore.Async<{ slug: string; id: number }>();
   await mylist.init("mylist");
 
-  const history = new ustore.Async<string>();
+  let history = new ustore.Async<string>();
   await history.init("history");
 
   // {
@@ -427,9 +427,6 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("update (async)", async () => {
     {
-      const mylist = new ustore.Async<{ slug: string }>();
-      await mylist.init("mylist");
-
       await mylist
         .update("100", { slug: "rick" })
         .then(() => assert(0, "Should not succeed"))
@@ -440,21 +437,19 @@ const stopwatch = async (label: string, fn: any) => {
           );
         });
 
-      await mylist.set("100", { slug: "enola" });
+      await mylist.set("100", { slug: "enola", id: 100 });
       let enola = (await mylist.get("100"))!;
       assert.strictEqual(enola.slug, "enola");
 
       await mylist.update("100", { slug: "enola-holmes" });
       enola = (await mylist.get("100"))!;
       assert.strictEqual(enola.slug, "enola-holmes");
+      assert.strictEqual(enola.id, 100);
 
       await mylist.clear();
     }
 
     {
-      const history = new ustore.Async<string>();
-      await history.init("history");
-
       await history
         .update("enola", "enola")
         .then(() => assert(0, "Should not succeed"))
@@ -571,12 +566,9 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  await stopwatch("rm", async () => {
+  await stopwatch("rm (async)", async () => {
     {
-      const mylist = new ustore.Async<{ slug: string }>();
-      await mylist.init("mylist");
-
-      await mylist.set("100", { slug: "enola" });
+      await mylist.set("100", { slug: "enola", id: 100 });
       assert.isDefined(await mylist.get("100"));
 
       await mylist.rm("100");
@@ -586,9 +578,6 @@ const stopwatch = async (label: string, fn: any) => {
     }
 
     {
-      const history = new ustore.Async<string>();
-      await history.init("history");
-
       await history.set("enola", "enola");
       assert.isDefined(await history.get("enola"));
 
@@ -596,6 +585,37 @@ const stopwatch = async (label: string, fn: any) => {
       assert.isUndefined(await history.get("enola"));
 
       await history.clear();
+    }
+  });
+
+  await stopwatch("delete (async)", async () => {
+    {
+      assert.isDefined(
+        (await indexedDB.databases()).find((db) => db.name == "mylist")
+      );
+
+      await mylist.delete();
+
+      assert.isUndefined(
+        (await indexedDB.databases()).find((db) => db.name == "mylist")
+      );
+
+      mylist = new ustore.Async<{ slug: string; id: number }>();
+      await mylist.init("mylist");
+    }
+
+    {
+      assert.isDefined(
+        (await indexedDB.databases()).find((db) => db.name == "history")
+      );
+
+      await history.delete();
+
+      assert.isUndefined(
+        (await indexedDB.databases()).find((db) => db.name == "history")
+      );
+      history = new ustore.Async<string>();
+      await history.init("history");
     }
   });
 }

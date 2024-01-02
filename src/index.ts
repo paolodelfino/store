@@ -1,4 +1,4 @@
-import { IDBPDatabase, openDB } from "idb";
+import { IDBPDatabase, deleteDB, openDB } from "idb";
 import { Constr, Middlewares, Options, Param, Store } from "./types";
 import { Memory_Storage } from "./utils";
 
@@ -273,14 +273,13 @@ export namespace ustore {
     }
 
     async clear() {
-      const t = this._db.transaction(this.identifier, "readwrite");
-      const table = t.objectStore(this.identifier);
-
+      const table = this._db.transaction(this.identifier, "readwrite").store;
       await table.clear();
     }
 
-    delete() {
-      // this._db.removeItem(this.identifier);
+    async delete() {
+      this._db.close();
+      await deleteDB(this.identifier);
     }
 
     export() {
