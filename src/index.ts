@@ -323,35 +323,13 @@ export namespace ustore {
       return (await table.getAll()).map((entry) => entry.value) as T[];
     }
 
-    private _get() {
-      // const store = JSON.parse(
-      //   this._db.getItem(this.identifier) ?? "null"
-      // ) as Store<T> | null;
-
-      // if (store) {
-      //   return this._rm_expired(store);
-      // }
-
-      return this._create_new();
-    }
-
-    private _set(store: Store<T>) {
-      // this._db.setItem(this.identifier, JSON.stringify(store));
-    }
-
     private _rm_expired(store: Store<T>): Store<T> {
       Object.entries(store).forEach(([key, value]) => {
         if (value.options?.expiry && Date.now() >= value.options.expiry) {
           delete store[key];
         }
       });
-      this._set(store);
-      return store;
-    }
-
-    private _create_new(): Store<T> {
-      const store: Store<T> = {};
-      this._set(store);
+      // this._set(store);
       return store;
     }
   }
