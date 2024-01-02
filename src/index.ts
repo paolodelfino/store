@@ -361,7 +361,7 @@ export namespace ustore {
     expiry: number;
   }
 
-  interface Entry<T> {
+  export interface Entry<T> {
     value: T;
     options?: Partial<Options>;
   }
