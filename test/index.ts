@@ -426,15 +426,57 @@ const stopwatch = async (label: string, fn: any) => {
   });
 
   await stopwatch("update (async)", async () => {
-    // let rick = mylist.get("rick");
-    // assert(rick);
-    // assert(rick.id == 5473);
-    // assert(rick.slug == "rick-and-morty");
-    // mylist.update("rick", { id: 42 });
-    // rick = mylist.get("rick");
-    // assert(rick);
-    // assert.strictEqual(rick.id, 42);
-    // assert(rick.slug == "rick-and-morty");
+    {
+      const mylist = new ustore.Async<{ slug: string }>();
+      await mylist.init("mylist");
+
+      await mylist
+        .update("100", { slug: "rick" })
+        .then(() => assert(0, "Should not succeed"))
+        .catch((err) => {
+          assert.strictEqual(
+            err.message,
+            'cannot update non-existing entry: "100"'
+          );
+        });
+
+      await mylist.set("100", { slug: "enola" });
+      let enola = (await mylist.get("100"))!;
+      assert.strictEqual(enola.slug, "enola");
+
+      await mylist.update("100", { slug: "enola-holmes" });
+      enola = (await mylist.get("100"))!;
+      assert.strictEqual(enola.slug, "enola-holmes");
+
+      await mylist.clear();
+    }
+
+    {
+      const history = new ustore.Async<string>();
+      await history.init("history");
+
+      await history
+        .update("enola", "enola")
+        .then(() => assert(0, "Should not succeed"))
+        .catch((err) => {
+          assert.strictEqual(
+            err.message,
+            'cannot update non-existing entry: "enola"'
+          );
+        });
+
+      await history.set("enola", "enola");
+      let enola = (await history.get("enola"))!;
+      assert.strictEqual(enola, "enola");
+
+      await history.update("enola", "enola-holmes");
+      enola = (await history.get("enola"))!;
+      assert.strictEqual(enola, "enola-holmes");
+
+      await history.clear();
+    }
+
+    // TODO: Add tests for expiry time
   });
 
   await stopwatch("middleware get (async)", async () => {
@@ -526,6 +568,34 @@ const stopwatch = async (label: string, fn: any) => {
 
         await history.clear();
       }
+    }
+  });
+
+  await stopwatch("rm", async () => {
+    {
+      const mylist = new ustore.Async<{ slug: string }>();
+      await mylist.init("mylist");
+
+      await mylist.set("100", { slug: "enola" });
+      assert.isDefined(await mylist.get("100"));
+
+      await mylist.rm("100");
+      assert.isUndefined(await mylist.get("100"));
+
+      await mylist.clear();
+    }
+
+    {
+      const history = new ustore.Async<string>();
+      await history.init("history");
+
+      await history.set("enola", "enola");
+      assert.isDefined(await history.get("enola"));
+
+      await history.rm("enola");
+      assert.isUndefined(await history.get("enola"));
+
+      await history.clear();
     }
   });
 }

@@ -182,7 +182,7 @@ export namespace ustore {
         cursor = await cursor.continue();
       }
 
-      throw new Error("cannot update non-existing entry");
+      throw new Error(`cannot update non-existing entry: "${key}"`);
     }
 
     async get(key: string) {
@@ -241,7 +241,9 @@ export namespace ustore {
     }
 
     async debug() {
-      const table = this._db.transaction(this.identifier).store;
+      const table = this._db.transaction(this.identifier, "readonly", {
+        durability: "relaxed",
+      }).store;
 
       let cursor = await table.openCursor();
       console.log("DEBUG");
@@ -252,10 +254,22 @@ export namespace ustore {
       }
     }
 
-    rm(key: string) {
-      const store = this._get();
-      delete store[key];
-      this._set(store);
+    async rm(key: string) {
+      const table = this._db.transaction(this.identifier, "readwrite", {
+        durability: "relaxed",
+      }).store;
+
+      let cursor = await table.openCursor();
+      while (cursor) {
+        if (cursor.key == key) {
+          await cursor.delete();
+          return;
+        }
+
+        cursor = await cursor.continue();
+      }
+
+      throw new Error(`cannot remove non-existing entry: "${key}"`);
     }
 
     async clear() {
