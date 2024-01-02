@@ -1,3 +1,5 @@
+import { ustore } from "./index";
+
 export type Param<
   T extends (...args: any) => any,
   U extends number,
@@ -22,3 +24,9 @@ export interface Entry<T> {
   value: T;
   options?: Partial<Options>;
 }
+
+export type Middlewares<T extends object | string> =
+  | Partial<{
+      get: (store: ustore.Async<T>, key: string) => Promise<string>;
+    }>
+  | undefined;

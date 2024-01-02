@@ -1,26 +1,27 @@
 import { IDBPDatabase, openDB } from "idb";
-import { Constr, Options, Param, Store } from "./types";
+import { Constr, Middlewares, Options, Param, Store } from "./types";
 import { Memory_Storage } from "./utils";
 
 export namespace ustore {
   export class Sync<T extends object> {
     private _storage!: Storage;
-    private _middlewares: Constr<typeof Sync<T>, 0, "middlewares">;
+    private _middlewares: Constr<typeof Sync<T>, 1, "middlewares">;
 
-    identifier: Constr<typeof Sync<T>, 0, "identifier">;
-    kind: Constr<typeof Sync<T>, 0, "kind">;
+    identifier: Constr<typeof Sync<T>, 0>;
+    kind: Constr<typeof Sync<T>, 1, "kind">;
 
-    constructor({
-      identifier,
-      kind,
-      middlewares,
-    }: {
-      identifier: string;
-      kind: "local" | "session" | "memory";
-      middlewares?: Partial<{
-        get: (store: Sync<T>, key: string) => string;
-      }>;
-    }) {
+    constructor(
+      identifier: string,
+      {
+        kind,
+        middlewares,
+      }: {
+        kind: "local" | "session" | "memory";
+        middlewares?: Partial<{
+          get: (store: Sync<T>, key: string) => string;
+        }>;
+      }
+    ) {
       this.identifier = identifier;
       this.kind = kind;
       switch (this.kind) {
@@ -139,30 +140,49 @@ export namespace ustore {
 
   export class Async<T extends object | string> {
     private _db!: IDBPDatabase;
-    private _middlewares: Param<typeof this.init, 0, "middlewares">;
-    private _type!: "o" | "s";
+    private _middlewares: Middlewares<T>;
 
-    identifier!: Param<typeof this.init, 0, "identifier">;
+    identifier!: Param<typeof this.init, 0>;
 
-    async init({
-      identifier,
-      middlewares,
-      type,
-    }: {
-      type: "object" | "string";
-      identifier: string;
-      middlewares?: Partial<{
-        get: (store: Async<T>, key: string) => Promise<string>;
-      }>;
-    }) {
-      this._type = type == "object" ? "o" : "s";
+    async init(
+      identifier: string,
+      options?: {
+        middlewares: Middlewares<T>;
+      }
+    ) {
       this.identifier = identifier;
-      this._middlewares = middlewares;
+      this._middlewares = options?.middlewares;
       this._db = await openDB(identifier, 1, {
         upgrade(database) {
           database.createObjectStore(identifier);
         },
       });
+    }
+
+    async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
+      const table = this._db.transaction(this.identifier, "readwrite", {
+        durability: "relaxed",
+      }).store;
+
+      let cursor = await table.openCursor();
+      while (cursor) {
+        if (cursor.key == key) {
+          await cursor.update({
+            options: { ...cursor.value.options, ...options },
+            value:
+              typeof value == "object"
+                ? { ...cursor.value.value, ...value }
+                : value
+                ? value
+                : cursor.value.value,
+          });
+          return;
+        }
+
+        cursor = await cursor.continue();
+      }
+
+      throw new Error("cannot update non-existing entry");
     }
 
     async get(key: string) {
@@ -175,50 +195,17 @@ export namespace ustore {
         this._middlewares.get = middleware_get;
       }
 
-      if (!(await this.has(key))) {
-        return;
-      }
-
       const table = this._db.transaction(this.identifier, "readonly", {
         durability: "relaxed",
       }).store;
 
-      const cursor = await table.openCursor();
-      if (this._type == "o") {
-        while (cursor) {
-          const sep = cursor.value.indexOf("-");
-          const noptions = Number(cursor.value.slice(0, sep));
-          const nprops = Number(cursor.value.slice(sep + 1));
-
-          if (cursor.key == key) {
-            const o = {};
-
-            await cursor.advance(noptions + 1);
-
-            for (let i = 0; i < nprops; ++i, await cursor.continue()) {
-              // @ts-ignore
-              o[cursor.key.substring(key.length + 1)] = cursor.value;
-            }
-
-            return o as T;
-          }
-
-          await cursor.advance(noptions + nprops + 1);
+      let cursor = await table.openCursor();
+      while (cursor) {
+        if (cursor.key == key) {
+          return cursor.value.value as T;
         }
-      } else {
-        while (cursor) {
-          const sep = cursor.value.indexOf("-");
-          const noptions = Number(cursor.value.slice(0, sep));
 
-          if (cursor.key == key) {
-            const str = cursor.value.slice(sep + 1);
-
-            await cursor.advance(noptions + 1);
-            return str as T;
-          }
-
-          await cursor.advance(noptions + 1);
-        }
+        cursor = await cursor.continue();
       }
     }
 
@@ -227,65 +214,30 @@ export namespace ustore {
         durability: "relaxed",
       }).store;
 
-      let cursor = await table.openCursor();
-      if (this._type == "o") {
-        while (cursor) {
-          if (cursor.key == key) {
-            return true;
-          }
-
-          const sep = cursor.value.indexOf("-");
-          const noptions = Number(cursor.value.slice(0, sep));
-          const nprops = Number(cursor.value.slice(sep + 1));
-
-          cursor = await cursor.advance(noptions + nprops + 1);
+      let cursor = await table.openKeyCursor();
+      while (cursor) {
+        if (cursor.key == key) {
+          return true;
         }
-      } else {
-        while (cursor) {
-          if (cursor.key.toString() == key) {
-            return true;
-          }
 
-          const sep = cursor.value.indexOf("-");
-          const noptions = Number(cursor.value.slice(0, sep));
-
-          cursor = await cursor.advance(noptions + 1);
-        }
+        cursor = await cursor.continue();
       }
 
       return false;
     }
 
     async set(key: string, value: T, options: Partial<Options> = {}) {
-      if (await this.has(key)) {
-        throw new Error(`cannot set a value of a pre-existing key: "${key}"`);
-      }
-
       const table = this._db.transaction(this.identifier, "readwrite", {
         durability: "relaxed",
       }).store;
 
-      if (this._type == "o") {
-        await table.add(
-          `${Object.keys(options).length}-${Object.keys(value).length}`,
-          key
-        );
-      } else {
-        await table.add(`${Object.keys(options).length}-${value}`, key);
-      }
-
-      for (const option in options) {
-        await table.add(
-          options[option as keyof NonNullable<Param<typeof this.set, 2>>],
-          `${key}-${option}`
-        );
-      }
-
-      if (this._type == "o") {
-        for (const prop in value) {
-          await table.add(value[prop], `${key}-${prop}`);
-        }
-      }
+      await table.put(
+        {
+          value,
+          options,
+        },
+        key
+      );
     }
 
     async debug() {
@@ -294,24 +246,10 @@ export namespace ustore {
       let cursor = await table.openCursor();
       console.log("DEBUG");
       while (cursor) {
-        console.log(`${cursor.key}: ${cursor.value}`);
+        console.log(`${cursor.key} (${typeof cursor.value}): ${cursor.value}`);
 
         cursor = await cursor.continue();
       }
-    }
-
-    update(key: string, value?: Partial<T>, options?: Partial<Options>) {
-      const store = this._get();
-      if (!store[key]) {
-        throw new Error("cannot update non-existing entry");
-      }
-
-      // store[key] = {
-      //   value: { ...store[key].value, ...value },
-      //   options: { ...store[key].options, ...options },
-      // };
-
-      this._set(store);
     }
 
     rm(key: string) {
