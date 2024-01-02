@@ -437,14 +437,25 @@ const stopwatch = async (label: string, fn: any) => {
           );
         });
 
-      await mylist.set("100", { slug: "enola", id: 100 });
+      await mylist.set(
+        "100",
+        { slug: "enola", id: 100 },
+        { expiry: Date.now() + 2000 }
+      );
       let enola = (await mylist.get("100"))!;
       assert.strictEqual(enola.slug, "enola");
 
-      await mylist.update("100", { slug: "enola-holmes" });
+      await mylist.update(
+        "100",
+        { slug: "enola-holmes" },
+        { expiry: Date.now() + 200 }
+      );
       enola = (await mylist.get("100"))!;
       assert.strictEqual(enola.slug, "enola-holmes");
       assert.strictEqual(enola.id, 100);
+
+      await time(200);
+      assert.isFalse(await mylist.has("100"));
 
       await mylist.clear();
     }
@@ -460,18 +471,21 @@ const stopwatch = async (label: string, fn: any) => {
           );
         });
 
-      await history.set("enola", "enola");
+      await history.set("enola", "enola", { expiry: Date.now() + 2000 });
       let enola = (await history.get("enola"))!;
       assert.strictEqual(enola, "enola");
 
-      await history.update("enola", "enola-holmes");
+      await history.update("enola", "enola-holmes", {
+        expiry: Date.now() + 200,
+      });
       enola = (await history.get("enola"))!;
       assert.strictEqual(enola, "enola-holmes");
 
+      await time(200);
+      assert.isFalse(await mylist.has("enola"));
+
       await history.clear();
     }
-
-    // TODO: Add tests for expiry time
   });
 
   await stopwatch("middleware get (async)", async () => {
@@ -569,7 +583,7 @@ const stopwatch = async (label: string, fn: any) => {
   await stopwatch("rm (async)", async () => {
     {
       await mylist.set("100", { slug: "enola", id: 100 });
-      assert.isDefined(await mylist.get("100"));
+      assert.isTrue(await mylist.has("100"));
 
       await mylist.rm("100");
       assert.isUndefined(await mylist.get("100"));
@@ -579,7 +593,7 @@ const stopwatch = async (label: string, fn: any) => {
 
     {
       await history.set("enola", "enola");
-      assert.isDefined(await history.get("enola"));
+      assert.isTrue(await history.has("enola"));
 
       await history.rm("enola");
       assert.isUndefined(await history.get("enola"));
@@ -672,9 +686,9 @@ const stopwatch = async (label: string, fn: any) => {
         await mylist.import(await newstore.export(), true);
         assert.strictEqual(await mylist.length(), 3);
 
-        assert.isDefined(await mylist.get("234"));
+        assert.isTrue(await mylist.has("234"));
         assert.strictEqual((await mylist.get("42"))?.id, 40);
-        assert.isDefined(await mylist.get("100"));
+        assert.isTrue(await mylist.has("100"));
       }
 
       await mylist.clear();
@@ -707,9 +721,9 @@ const stopwatch = async (label: string, fn: any) => {
         await history.import(await newstore.export(), true);
         assert.strictEqual(await history.length(), 3);
 
-        assert.isDefined(await history.get("enola"));
+        assert.isTrue(await history.has("enola"));
         assert.strictEqual(await history.get("rick"), "rick and morty");
-        assert.isDefined(await history.get("few"));
+        assert.isTrue(await history.has("few"));
       }
 
       await history.clear();
@@ -740,6 +754,30 @@ const stopwatch = async (label: string, fn: any) => {
       assert.strictEqual(entries[1], "rick");
 
       await history.clear();
+    }
+  });
+
+  await stopwatch("expiry", async () => {
+    {
+      await mylist.set(
+        "234",
+        { id: 234, slug: "enola-holmes" },
+        { expiry: Date.now() + 200 }
+      );
+
+      assert.isTrue(await mylist.has("234"));
+
+      await time(200);
+      assert.isFalse(await mylist.has("234"));
+    }
+
+    {
+      await history.set("enola", "enola", { expiry: Date.now() + 200 });
+
+      assert.isTrue(await history.has("enola"));
+
+      await time(200);
+      assert.isFalse(await history.has("enola"));
     }
   });
 }
