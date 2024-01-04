@@ -146,17 +146,28 @@ export namespace ustore {
     async init(
       identifier: string,
       options?: {
-        middlewares: Middlewares<T>;
+        middlewares?: Middlewares<T>;
+        version?: number;
+        migrate?: (old_version: number) => Promise<void>;
       }
     ) {
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
-      this._db = await openDB(identifier, 1, {
-        upgrade(database) {
+
+      let old_version: number | undefined;
+
+      this._db = await openDB(identifier, options?.version ?? 1, {
+        upgrade(database, old_ver) {
           const table = database.createObjectStore(identifier);
           table.createIndex("byExpiry", "options.expiry");
+
+          old_version = old_ver;
         },
       });
+
+      if (old_version != undefined) {
+        await options?.migrate?.(old_version);
+      }
     }
 
     async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
