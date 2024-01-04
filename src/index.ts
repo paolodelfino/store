@@ -151,6 +151,10 @@ export namespace ustore {
         migrate?: (old_version: number) => Promise<void>;
       }
     ) {
+      if (options?.version && options.version <= 0) {
+        throw new Error("Database version should be at least 1");
+      }
+
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
 
