@@ -273,8 +273,6 @@ export namespace ustore {
 
         cursor = await cursor.continue();
       }
-
-      throw new Error(`cannot remove non-existing entry: "${key}"`);
     }
 
     async clear() {
