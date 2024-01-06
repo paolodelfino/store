@@ -400,10 +400,10 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("get (async)", async () => {
     {
-      assert.isUndefined(await mylist.get("543"));
+      assert.isUndefined(await mylist.get("5473"));
 
-      await mylist.set("543", { id: 5473, slug: "rick-and-morty" });
-      const rick = (await mylist.get("543"))!;
+      await mylist.set("5473", { id: 5473, slug: "rick-and-morty" });
+      const rick = (await mylist.get("5473"))!;
       assert.isDefined(rick);
 
       assert.strictEqual(rick.id, 5473);
@@ -420,6 +420,42 @@ const stopwatch = async (label: string, fn: any) => {
       assert.isDefined(rick);
 
       assert.strictEqual(rick, "rick");
+
+      await history.clear();
+    }
+  });
+
+  await stopwatch("get_some (async)", async () => {
+    {
+      assert.strictEqual((await mylist.get_some(["5473", "100"])).length, 0);
+
+      await mylist.set("5473", { id: 5473, slug: "rick-and-morty" });
+      await mylist.set("100", { id: 100, slug: "enola-holmes" });
+
+      const some = await mylist.get_some(["5473", "100"]);
+      assert.strictEqual(some.length, 2);
+
+      assert.strictEqual(some[0].id, 5473);
+      assert.strictEqual(some[0].slug, "rick-and-morty");
+
+      assert.strictEqual(some[1].id, 100);
+      assert.strictEqual(some[1].slug, "enola-holmes");
+
+      await mylist.clear();
+    }
+
+    {
+      assert.strictEqual((await history.get_some(["rick", "enola"])).length, 0);
+
+      await history.set("rick", "rick");
+      await history.set("enola", "enola");
+
+      const some = await history.get_some(["rick", "enola"]);
+      assert.strictEqual(some.length, 2);
+
+      assert.strictEqual(some[0], "rick");
+
+      assert.strictEqual(some[1], "enola");
 
       await history.clear();
     }

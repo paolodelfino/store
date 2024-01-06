@@ -198,6 +198,19 @@ export namespace ustore {
       throw new Error(`cannot update non-existing entry: "${key}"`);
     }
 
+    async get_some(keys: string[]) {
+      const entries: T[] = [];
+
+      for (const key of keys) {
+        const entry = await this.get(key);
+        if (entry) {
+          entries.push(entry);
+        }
+      }
+
+      return entries;
+    }
+
     async get(key: string) {
       if (this._middlewares?.get) {
         const middleware_get = this._middlewares.get;
