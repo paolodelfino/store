@@ -793,7 +793,7 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  await stopwatch("expiry", async () => {
+  await stopwatch("expiry (async)", async () => {
     {
       await mylist.set(
         "234",
@@ -814,6 +814,47 @@ const stopwatch = async (label: string, fn: any) => {
 
       await time(200);
       assert.isFalse(await history.has("enola"));
+    }
+  });
+
+  await stopwatch("orderby timestamp (async)", async () => {
+    {
+      const is: string[] = [];
+
+      for (let i = 0; i < 100; ++i) {
+        is.push(i.toString());
+        await mylist.set(i.toString(), {
+          id: i,
+          slug: i.toString(),
+        });
+        await time(1);
+      }
+
+      const is_store = await mylist.values();
+
+      for (let i = 0; i < is.length; ++i) {
+        assert.strictEqual(is[i], is_store[i].slug);
+      }
+
+      await mylist.clear();
+    }
+
+    {
+      const is: string[] = [];
+
+      for (let i = 0; i < 100; ++i) {
+        is.push(i.toString());
+        await history.set(i.toString(), i.toString());
+        await time(1);
+      }
+
+      const is_store = await history.values();
+
+      for (let i = 0; i < is.length; ++i) {
+        assert.strictEqual(is[i], is_store[i]);
+      }
+
+      await history.clear();
     }
   });
 }

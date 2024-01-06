@@ -163,7 +163,8 @@ export namespace ustore {
       this._db = await openDB(identifier, options?.version ?? 1, {
         upgrade(database, old_ver) {
           const table = database.createObjectStore(identifier);
-          table.createIndex("byExpiry", "options.expiry");
+          table.createIndex("byExpiry", "options.expiry", { unique: false });
+          table.createIndex("byTimestamp", "timestamp", { unique: false });
 
           old_version = old_ver;
         },
@@ -255,6 +256,7 @@ export namespace ustore {
         {
           value,
           options,
+          timestamp: Date.now(),
         },
         key
       );
@@ -337,7 +339,9 @@ export namespace ustore {
     async values() {
       const table = await this._table();
 
-      return (await table.getAll()).map((entry) => entry.value) as T[];
+      return (await table.index("byTimestamp").getAll()).map(
+        (entry) => entry.value
+      ) as T[];
     }
 
     private async _table<T extends "readonly" | "readwrite" = "readonly">(
