@@ -245,86 +245,14 @@ const stopwatch = async (label: string, fn: any) => {
     await time(400);
     assert.isUndefined(mylist.get("title"));
   });
-
-  // await stopwatch("queue", async () => {
-  //   const store = new ustore.Sync<number>();
-  //   await store.init({ identifier: "numbers", kind: "memory" });
-
-  //   store.queue(async () => {
-  //     await time(400);
-  //     store.set("1", 1);
-  //   });
-  //   store.queue(async () => {
-  //     store.set("2", 2);
-  //   });
-
-  //   await time(450);
-
-  //   let values = await store.all();
-  //   assert.strictEqual(values[0], 1);
-  //   assert.strictEqual(values[1], 2);
-  //   assert.isUndefined(values[2]);
-  //   assert.isUndefined(values[3]);
-  //   assert.isUndefined(values[4]);
-
-  //   store.queue(async () => {
-  //     await time(400);
-  //     await store.set("3", 3);
-  //   });
-  //   store.queue(async () => {
-  //     await time(200);
-  //     await store.set("4", 4);
-  //   });
-  //   store.queue(async () => {
-  //     await time(600);
-  //     await store.set("5", 5);
-  //   });
-
-  //   await time(1250);
-
-  //   values = await store.all();
-  //   assert.strictEqual(values[0], 1);
-  //   assert.strictEqual(values[1], 2);
-  //   assert.strictEqual(values[2], 3);
-  //   assert.strictEqual(values[3], 4);
-  //   assert.strictEqual(values[4], 5);
-  // });
 }
 
 {
-  let mylist = new ustore.Async<{ slug: string; id: number }>();
+  let mylist = new ustore.Async<{ slug: string; id: number }, "a"|"b">();
   await mylist.init("mylist");
 
   let history = new ustore.Async<string>();
   await history.init("history");
-
-  // {
-  //   await mylist.set("234", { id: 234, slug: "enola-holmes" });
-  //   await mylist.set("42", { id: 42, slug: "rick-and-morty" });
-  //   await mylist.debug();
-
-  //   // console.log(await mylist.has("42"));
-  //   // console.log(await mylist.has("234"));
-
-  //   const db = await openDB("mylist");
-  //   const table = db.transaction("mylist").store;
-  //   let cursor = await table.openCursor();
-
-  //   console.log("CURSOR");
-  //   while (cursor) {
-  //     if (cursor.key == "42") {
-  //       console.log("found");
-  //       break;
-  //     }
-
-  //     const sep = cursor.value.indexOf("-");
-  //     const noptions = Number(cursor.value.slice(0, sep));
-  //     const nprops = Number(cursor.value.slice(sep + 1));
-
-  //     cursor = await cursor.advance(noptions + nprops + 1);
-  //   }
-  // }
-  // exit(0);
 
   await stopwatch("clear (async)", async () => {
     {
@@ -857,6 +785,29 @@ const stopwatch = async (label: string, fn: any) => {
       await history.clear();
     }
   });
+
+  // await stopwatch("indexes (async)", async () => {
+  //   await mylist.delete();
+  //   mylist = new ustore.Async();
+  //   await mylist.init("mylist", {
+  //     indexes: [{ name: "bySlug", path: "slug" }],
+  //     async migrate({ create_index }) {
+  //       create_index({
+  //         name: "byId",
+  //         path: "id",
+  //       });
+  //     },
+  //   });
+
+  // TODO: Add tests for every index function and complete test to ensure that we can create and delete
+  //       indexes in migrate()
+
+  //   await mylist.delete();
+  //   mylist = new ustore.Async();
+  //   await mylist.init("mylist");
+  // });
+
+  // TODO: Add test for migrate()
 }
 
 console.log("Done!");

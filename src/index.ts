@@ -137,18 +137,23 @@ export namespace ustore {
     }
   }
 
-  export class Async<T extends object | string> {
+  export class Async<T extends object | string, U extends Index["name"]> {
     private _db!: IDBPDatabase;
-    private _middlewares: Middlewares<T>;
+    private _middlewares: Middlewares<T, U>;
 
     identifier!: Param<typeof this.init, 0>;
 
     async init(
       identifier: string,
       options?: {
-        middlewares?: Middlewares<T>;
+        middlewares?: Middlewares<T, U>;
         version?: number;
-        migrate?: (old_version: number) => Promise<void>;
+        migrate?: (data: {
+          old_version: number;
+          create_index: (index: Index) => void;
+          remove_index: (name: Index["name"]) => void;
+        }) => Promise<void>;
+        indexes?: U[];
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -158,21 +163,122 @@ export namespace ustore {
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
 
-      let old_version: number | undefined;
+      let migrating: Promise<unknown> | undefined;
+      const temp_db = (table: any) => {
+        this._db = {
+          // @ts-ignore
+          transaction: () => {
+            return { store: table };
+          },
+        };
+      };
 
-      this._db = await openDB(identifier, options?.version ?? 1, {
-        upgrade(database, old_ver) {
-          const table = database.createObjectStore(identifier);
-          table.createIndex("byExpiry", "options.expiry", { unique: false });
-          table.createIndex("byTimestamp", "timestamp", { unique: false });
+      const db = await openDB(identifier, options?.version ?? 1, {
+        upgrade(database, old_version, _, tx) {
+          if (!database.objectStoreNames.contains(identifier)) {
+            database.createObjectStore(identifier);
+          }
 
-          old_version = old_ver;
+          const table = tx.objectStore(identifier);
+
+          if (!table.indexNames.contains("byExpiry")) {
+            table.createIndex("byExpiry", "options.expiry", { unique: false });
+          }
+          if (!table.indexNames.contains("byTimestamp")) {
+            table.createIndex("byTimestamp", "timestamp", { unique: false });
+          }
+
+          if (options?.indexes) {
+            for (const { name, path, unique, multi_entry } of options.indexes) {
+              table.createIndex(name, `value.${path}`, {
+                unique,
+                multiEntry: multi_entry,
+              });
+            }
+          }
+
+          if (options?.migrate) {
+            temp_db(table);
+
+            migrating = options.migrate({
+              old_version,
+              create_index({ name, path, multi_entry, unique }) {
+                table?.createIndex(name, `value.${path}`, {
+                  unique,
+                  multiEntry: multi_entry,
+                });
+              },
+              remove_index(name) {
+                table?.deleteIndex(name);
+              },
+            });
+          }
         },
       });
 
-      if (old_version != undefined) {
-        await options?.migrate?.(old_version);
+      await migrating;
+      this._db = db;
+    }
+
+    async index(name: U["name"]) {
+      const table = await this._table();
+      return (await table.index(name).getAll()) as T[];
+    }
+
+    async index_only(name: U["name"], value: any) {
+      const table = await this._table();
+      return (await table.index(name).getAll(IDBKeyRange.only(value))) as T[];
+    }
+
+    async index_above(
+      name: U["name"],
+      { value, inclusive }: { value: any; inclusive?: boolean }
+    ) {
+      const table = await this._table();
+      return (await table
+        .index(name)
+        .getAll(IDBKeyRange.upperBound(value, !inclusive))) as T[];
+    }
+
+    async index_below(
+      name: U["name"],
+      { value, inclusive }: { value: any; inclusive?: boolean }
+    ) {
+      const table = await this._table();
+      return (await table
+        .index(name)
+        .getAll(IDBKeyRange.upperBound(value, !inclusive))) as T[];
+    }
+
+    async index_range(
+      name: U["name"],
+      {
+        lower_value,
+        upper_value,
+        lower_inclusive,
+        upper_inclusive,
+      }: {
+        lower_value: any;
+        upper_value: any;
+        lower_inclusive?: boolean;
+        upper_inclusive?: boolean;
       }
+    ) {
+      const table = await this._table();
+      return (await table
+        .index(name)
+        .getAll(
+          IDBKeyRange.bound(
+            lower_value,
+            upper_value,
+            !lower_inclusive,
+            !upper_inclusive
+          )
+        )) as T[];
+    }
+
+    close() {
+      this._db.close();
     }
 
     async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
@@ -396,9 +502,16 @@ export namespace ustore {
     options?: Partial<Options>;
   }
 
-  type Middlewares<T extends object | string> =
+  type Middlewares<T extends object | string, U extends Index["name"]> =
     | Partial<{
-        get: (store: ustore.Async<T>, key: string) => Promise<string>;
+        get: (store: ustore.Async<T, U>, key: string) => Promise<string>;
       }>
     | undefined;
+
+  interface Index {
+    name: string;
+    path: string;
+    unique?: boolean;
+    multi_entry?: boolean;
+  }
 }
