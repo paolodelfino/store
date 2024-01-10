@@ -248,7 +248,10 @@ const stopwatch = async (label: string, fn: any) => {
 }
 
 {
-  let mylist = new ustore.Async<{ slug: string; id: number }, "a"|"b">();
+  let mylist = new ustore.Async<{
+    slug: string;
+    id: number;
+  }>();
   await mylist.init("mylist");
 
   let history = new ustore.Async<string>();
@@ -800,7 +803,7 @@ const stopwatch = async (label: string, fn: any) => {
   //   });
 
   // TODO: Add tests for every index function and complete test to ensure that we can create and delete
-  //       indexes in migrate()
+  //       indexes in migrate() (also check per index aggiunti in una successiva versione)
 
   //   await mylist.delete();
   //   mylist = new ustore.Async();

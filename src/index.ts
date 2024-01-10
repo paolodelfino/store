@@ -137,7 +137,10 @@ export namespace ustore {
     }
   }
 
-  export class Async<T extends object | string, U extends Index["name"]> {
+  export class Async<
+    T extends object | string,
+    U extends string = "There is no index available"
+  > {
     private _db!: IDBPDatabase;
     private _middlewares: Middlewares<T, U>;
 
@@ -150,10 +153,10 @@ export namespace ustore {
         version?: number;
         migrate?: (data: {
           old_version: number;
-          create_index: (index: Index) => void;
-          remove_index: (name: Index["name"]) => void;
+          create_index: (index: Index<U>) => void;
+          remove_index: (name: Index<U>["name"]) => void;
         }) => Promise<void>;
-        indexes?: U[];
+        indexes?: Index<U>[];
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -190,10 +193,12 @@ export namespace ustore {
 
           if (options?.indexes) {
             for (const { name, path, unique, multi_entry } of options.indexes) {
-              table.createIndex(name, `value.${path}`, {
-                unique,
-                multiEntry: multi_entry,
-              });
+              if (!table.indexNames.contains(name)) {
+                table.createIndex(name, `value.${path}`, {
+                  unique,
+                  multiEntry: multi_entry,
+                });
+              }
             }
           }
 
@@ -220,18 +225,18 @@ export namespace ustore {
       this._db = db;
     }
 
-    async index(name: U["name"]) {
+    async index(name: Index<U>["name"]) {
       const table = await this._table();
       return (await table.index(name).getAll()) as T[];
     }
 
-    async index_only(name: U["name"], value: any) {
+    async index_only(name: Index<U>["name"], value: any) {
       const table = await this._table();
       return (await table.index(name).getAll(IDBKeyRange.only(value))) as T[];
     }
 
     async index_above(
-      name: U["name"],
+      name: Index<U>["name"],
       { value, inclusive }: { value: any; inclusive?: boolean }
     ) {
       const table = await this._table();
@@ -241,7 +246,7 @@ export namespace ustore {
     }
 
     async index_below(
-      name: U["name"],
+      name: Index<U>["name"],
       { value, inclusive }: { value: any; inclusive?: boolean }
     ) {
       const table = await this._table();
@@ -251,7 +256,7 @@ export namespace ustore {
     }
 
     async index_range(
-      name: U["name"],
+      name: Index<U>["name"],
       {
         lower_value,
         upper_value,
@@ -502,14 +507,14 @@ export namespace ustore {
     options?: Partial<Options>;
   }
 
-  type Middlewares<T extends object | string, U extends Index["name"]> =
+  type Middlewares<T extends object | string, U extends string> =
     | Partial<{
         get: (store: ustore.Async<T, U>, key: string) => Promise<string>;
       }>
     | undefined;
 
-  interface Index {
-    name: string;
+  interface Index<U> {
+    name: U;
     path: string;
     unique?: boolean;
     multi_entry?: boolean;
