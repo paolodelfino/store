@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import "dotenv/config";
 import "fake-indexeddb/auto";
+import { openDB } from "idb";
 import { ustore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -789,28 +790,93 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  // await stopwatch("indexes (async)", async () => {
-  //   await mylist.delete();
-  //   mylist = new ustore.Async();
-  //   await mylist.init("mylist", {
-  //     indexes: [{ name: "bySlug", path: "slug" }],
-  //     async migrate({ create_index }) {
-  //       create_index({
-  //         name: "byId",
-  //         path: "id",
-  //       });
-  //     },
-  //   });
+  await stopwatch("migrate & indexes (async)", async () => {
+    const store = new ustore.Async<
+      {
+        id: {
+          slug?: string;
+          number: number;
+        };
+        genres: ("horror" | "fantasy" | "series")[];
+      },
+      "byGenre" | "byIdNumber" | "bySlug"
+    >();
+    await store.init("store", {
+      indexes: [
+        {
+          name: "byGenre",
+          path: "genres",
+          multi_entry: true,
+        },
+        {
+          name: "byIdNumber",
+          path: "id.number",
+          unique: true,
+        },
+      ],
+      async migrate({ old_version, create_index }) {
+        assert.strictEqual(old_version, 0);
 
-  // TODO: Add tests for every index function and complete test to ensure that we can create and delete
-  //       indexes in migrate() (also check per index aggiunti in una successiva versione)
+        create_index({
+          name: "bySlug",
+          path: "id.slug",
+        });
+      },
+    });
 
-  //   await mylist.delete();
-  //   mylist = new ustore.Async();
-  //   await mylist.init("mylist");
-  // });
+    await store.set("15", {
+      id: { number: 15 },
+      genres: ["horror"],
+    });
+    await store.set("17", {
+      id: { number: 17, slug: "rick" },
+      genres: ["series", "fantasy"],
+    });
+    await store.set("20", { id: { number: 20 }, genres: [] });
+    await store.set("16", {
+      id: { number: 16 },
+      genres: ["series"],
+    });
 
-  // TODO: Add test for migrate()
+    assert.strictEqual((await store.index("bySlug")).length, 1);
+    assert.strictEqual((await store.index("byIdNumber")).length, 4);
+
+    assert.strictEqual(
+      (await store.index_only("byGenre", "fantasy")).length,
+      1
+    );
+    assert.strictEqual((await store.index_only("byGenre", "horror")).length, 1);
+    assert.strictEqual((await store.index_only("byGenre", "series")).length, 2);
+
+    assert.strictEqual((await store.index_above("byIdNumber", 17)).length, 2);
+    assert.strictEqual(
+      (await store.index_above("byIdNumber", 17, { inclusive: true })).length,
+      3
+    );
+
+    assert.strictEqual((await store.index_below("byIdNumber", 17)).length, 2);
+    assert.strictEqual(
+      (await store.index_below("byIdNumber", 17, { inclusive: true })).length,
+      3
+    );
+
+    assert.strictEqual(
+      (await store.index_range("byIdNumber", 16, 20)).length,
+      1
+    );
+    const a = await store.index_range("byIdNumber", 16, 20, {
+      lower_inclusive: true,
+    });
+    assert.strictEqual(a.length, 2);
+    const b = await store.index_range("byIdNumber", 16, 20, {
+      upper_inclusive: true,
+    });
+    assert.strictEqual(b.length, 2);
+    assert.isDefined(a.find((i) => i.id.number == 16));
+    assert.isDefined(b.find((i) => i.id.number == 20));
+
+    await store.delete();
+  });
 }
 
 console.log("Done!");

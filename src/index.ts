@@ -154,7 +154,7 @@ export namespace ustore {
         migrate?: (data: {
           old_version: number;
           create_index: (index: Index<U>) => void;
-          remove_index: (name: Index<U>["name"]) => void;
+          remove_index: (name: string) => void;
         }) => Promise<void>;
         indexes?: Index<U>[];
       }
@@ -227,63 +227,66 @@ export namespace ustore {
 
     async index(name: Index<U>["name"]) {
       const table = await this._table();
-      return (await table.index(name).getAll()) as T[];
+      return (await table.index(name).getAll()).map(
+        (entry) => entry.value
+      ) as T[];
     }
 
     async index_only(name: Index<U>["name"], value: any) {
       const table = await this._table();
-      return (await table.index(name).getAll(IDBKeyRange.only(value))) as T[];
+      return (await table.index(name).getAll(IDBKeyRange.only(value))).map(
+        (entry) => entry.value
+      ) as T[];
     }
 
     async index_above(
       name: Index<U>["name"],
-      { value, inclusive }: { value: any; inclusive?: boolean }
+      value: any,
+      options?: { inclusive?: boolean }
     ) {
       const table = await this._table();
-      return (await table
-        .index(name)
-        .getAll(IDBKeyRange.upperBound(value, !inclusive))) as T[];
+      return (
+        await table
+          .index(name)
+          .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
+      ).map((entry) => entry.value) as T[];
     }
 
     async index_below(
       name: Index<U>["name"],
-      { value, inclusive }: { value: any; inclusive?: boolean }
+      value: any,
+      options?: { inclusive?: boolean }
     ) {
       const table = await this._table();
-      return (await table
-        .index(name)
-        .getAll(IDBKeyRange.upperBound(value, !inclusive))) as T[];
+      return (
+        await table
+          .index(name)
+          .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
+      ).map((entry) => entry.value) as T[];
     }
 
     async index_range(
       name: Index<U>["name"],
-      {
-        lower_value,
-        upper_value,
-        lower_inclusive,
-        upper_inclusive,
-      }: {
-        lower_value: any;
-        upper_value: any;
+      lower_value: any,
+      upper_value: any,
+      options?: {
         lower_inclusive?: boolean;
         upper_inclusive?: boolean;
       }
     ) {
       const table = await this._table();
-      return (await table
-        .index(name)
-        .getAll(
-          IDBKeyRange.bound(
-            lower_value,
-            upper_value,
-            !lower_inclusive,
-            !upper_inclusive
+      return (
+        await table
+          .index(name)
+          .getAll(
+            IDBKeyRange.bound(
+              lower_value,
+              upper_value,
+              !options?.lower_inclusive,
+              !options?.upper_inclusive
+            )
           )
-        )) as T[];
-    }
-
-    close() {
-      this._db.close();
+      ).map((entry) => entry.value) as T[];
     }
 
     async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
@@ -374,13 +377,24 @@ export namespace ustore {
     }
 
     async debug() {
+      console.log("DEBUG");
+
       const table = await this._table();
 
+      console.log("indexes", table.indexNames);
+
+      for (const index of table.indexNames) {
+        console.log(index, await table.index(index).getAll());
+      }
+
       let cursor = await table.openCursor();
-      console.log("DEBUG");
       while (cursor) {
         console.log(
-          `${cursor.key} (${typeof cursor.value.value}): ${cursor.value}`
+          `${cursor.key} (${typeof cursor.value.value}): ${JSON.stringify(
+            cursor.value,
+            null,
+            2
+          )}`
         );
 
         cursor = await cursor.continue();
