@@ -938,6 +938,17 @@ const stopwatch = async (label: string, fn: any) => {
     });
 
     await store2.delete();
+
+    try {
+      const store3 = new ustore.Async();
+      await store3.init("store");
+
+      await store3.set("enola", "enola");
+
+      await store3.delete();
+    } catch (error) {
+      assert(0, "Should not fail");
+    }
   });
 }
 
