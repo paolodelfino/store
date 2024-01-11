@@ -138,24 +138,26 @@ export namespace ustore {
   }
 
   export class Async<
-    T extends object | string,
-    U extends string = "There is no index available"
+    Value extends object | string,
+    Indexes extends string = "There is no index available"
   > {
     private _db!: IDBPDatabase;
-    private _middlewares: Middlewares<T, U>;
+    private _middlewares: Middlewares<Value, Indexes>;
+    private _consume_default?: Value;
 
     identifier!: Param<typeof this.init, 0>;
 
     async init(
       identifier: string,
       options?: {
-        middlewares?: Middlewares<T, U>;
+        middlewares?: Middlewares<Value, Indexes>;
         version?: number;
         migrate?: (data: {
           old_version: number;
           remove_index: (name: string) => void;
         }) => Promise<void>;
-        indexes?: Index<U>[];
+        indexes?: Index<Indexes>[];
+        consume_default?: Value;
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -164,6 +166,7 @@ export namespace ustore {
 
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
+      this._consume_default = options?.consume_default;
 
       let migrating: Promise<unknown> | undefined;
       const temp_db = (table: any) => {
@@ -222,8 +225,8 @@ export namespace ustore {
       this._db.close();
     }
 
-    indexes(): U[] {
-      const indexes: U[] = [];
+    indexes(): Indexes[] {
+      const indexes: Indexes[] = [];
 
       const raw = this._db.transaction("store").store.indexNames;
       for (let i = 0; i < raw.length; ++i) {
@@ -234,7 +237,7 @@ export namespace ustore {
           case null:
             break;
           default:
-            indexes.push(index as U);
+            indexes.push(index as Indexes);
             break;
         }
       }
@@ -242,22 +245,22 @@ export namespace ustore {
       return indexes;
     }
 
-    async index(name: Index<U>["name"]) {
+    async index(name: Index<Indexes>["name"]) {
       const table = await this._table();
       return (await table.index(name).getAll()).map(
         (entry) => entry.value
-      ) as T[];
+      ) as Value[];
     }
 
-    async index_only(name: Index<U>["name"], value: any) {
+    async index_only(name: Index<Indexes>["name"], value: any) {
       const table = await this._table();
       return (await table.index(name).getAll(IDBKeyRange.only(value))).map(
         (entry) => entry.value
-      ) as T[];
+      ) as Value[];
     }
 
     async index_above(
-      name: Index<U>["name"],
+      name: Index<Indexes>["name"],
       value: any,
       options?: { inclusive?: boolean }
     ) {
@@ -266,11 +269,11 @@ export namespace ustore {
         await table
           .index(name)
           .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
-      ).map((entry) => entry.value) as T[];
+      ).map((entry) => entry.value) as Value[];
     }
 
     async index_below(
-      name: Index<U>["name"],
+      name: Index<Indexes>["name"],
       value: any,
       options?: { inclusive?: boolean }
     ) {
@@ -279,11 +282,11 @@ export namespace ustore {
         await table
           .index(name)
           .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
-      ).map((entry) => entry.value) as T[];
+      ).map((entry) => entry.value) as Value[];
     }
 
     async index_range(
-      name: Index<U>["name"],
+      name: Index<Indexes>["name"],
       lower_value: any,
       upper_value: any,
       options?: {
@@ -303,10 +306,14 @@ export namespace ustore {
               !options?.upper_inclusive
             )
           )
-      ).map((entry) => entry.value) as T[];
+      ).map((entry) => entry.value) as Value[];
     }
 
-    async update(key: string, value?: Partial<T>, options?: Partial<Options>) {
+    async update(
+      key: string,
+      value?: Partial<Value>,
+      options?: Partial<Options>
+    ) {
       const table = await this._table("readwrite");
 
       let cursor = await table.openCursor();
@@ -331,7 +338,7 @@ export namespace ustore {
     }
 
     async get_some(keys: string[]) {
-      const entries: T[] = [];
+      const entries: Value[] = [];
 
       for (const key of keys) {
         const entry = await this.get(key);
@@ -358,7 +365,30 @@ export namespace ustore {
       let cursor = await table.openCursor();
       while (cursor) {
         if (cursor.key == key) {
-          return cursor.value.value as T;
+          return cursor.value.value as Value;
+        }
+
+        cursor = await cursor.continue();
+      }
+    }
+
+    async consume(key: string) {
+      const table = await this._table("readwrite");
+
+      let cursor = await table.openCursor();
+      while (cursor) {
+        if (cursor.key == key) {
+          const value = cursor.value.value as Value;
+
+          if (this._consume_default != undefined) {
+            await cursor.update({
+              value: this._consume_default,
+            });
+          } else {
+            await cursor.delete();
+          }
+
+          return value;
         }
 
         cursor = await cursor.continue();
@@ -380,7 +410,7 @@ export namespace ustore {
       return false;
     }
 
-    async set(key: string, value: T, options: Partial<Options> = {}) {
+    async set(key: string, value: Value, options: Partial<Options> = {}) {
       const table = await this._table("readwrite");
 
       await table.put(
@@ -445,7 +475,7 @@ export namespace ustore {
 
     async export() {
       const table = await this._table();
-      const set = new Map<string, Entry<T>>();
+      const set = new Map<string, Entry<Value>>();
 
       let cursor = await table.openCursor();
       while (cursor) {
@@ -483,7 +513,7 @@ export namespace ustore {
 
       return (await table.index("byTimestamp").getAll()).map(
         (entry) => entry.value
-      ) as T[];
+      ) as Value[];
     }
 
     private async _table<T extends "readonly" | "readwrite" = "readonly">(
@@ -538,9 +568,12 @@ export namespace ustore {
     options?: Partial<Options>;
   }
 
-  type Middlewares<T extends object | string, U extends string> =
+  type Middlewares<Value extends object | string, Indexes extends string> =
     | Partial<{
-        get: (store: ustore.Async<T, U>, key: string) => Promise<string>;
+        get: (
+          store: ustore.Async<Value, Indexes>,
+          key: string
+        ) => Promise<string>;
       }>
     | undefined;
 

@@ -790,164 +790,213 @@ const stopwatch = async (label: string, fn: any) => {
   });
 
   await stopwatch("migration & indexes (async)", async () => {
-    const store = new ustore.Async<
-      {
-        id: {
-          slug?: string;
-          number: number;
-        };
-        genres: ("horror" | "fantasy" | "series")[];
-      },
-      "byGenre" | "byIdNumber" | "bySlug"
-    >();
-    await store.init("store", {
-      indexes: [
+    {
+      const store = new ustore.Async<
         {
-          name: "byGenre",
-          path: "genres",
-          multi_entry: true,
+          id: {
+            slug?: string;
+            number: number;
+          };
+          genres: ("horror" | "fantasy" | "series")[];
         },
+        "byGenre" | "byIdNumber" | "bySlug"
+      >();
+      await store.init("store", {
+        indexes: [
+          {
+            name: "byGenre",
+            path: "genres",
+            multi_entry: true,
+          },
+          {
+            name: "byIdNumber",
+            path: "id.number",
+            unique: true,
+          },
+          {
+            name: "bySlug",
+            path: "id.slug",
+          },
+        ],
+        async migrate({ old_version }) {
+          assert.strictEqual(old_version, 0);
+        },
+      });
+
+      await store.set("15", {
+        id: { number: 15 },
+        genres: ["horror"],
+      });
+      await store.set("17", {
+        id: { number: 17, slug: "rick" },
+        genres: ["series", "fantasy"],
+      });
+      await store.set("20", { id: { number: 20 }, genres: [] });
+      await store.set("16", {
+        id: { number: 16 },
+        genres: ["series"],
+      });
+
+      assert.strictEqual((await store.index("bySlug")).length, 1);
+      assert.strictEqual((await store.index("byIdNumber")).length, 4);
+
+      assert.strictEqual(
+        (await store.index_only("byGenre", "fantasy")).length,
+        1
+      );
+      assert.strictEqual(
+        (await store.index_only("byGenre", "horror")).length,
+        1
+      );
+      assert.strictEqual(
+        (await store.index_only("byGenre", "series")).length,
+        2
+      );
+
+      assert.strictEqual((await store.index_above("byIdNumber", 17)).length, 2);
+      assert.strictEqual(
+        (await store.index_above("byIdNumber", 17, { inclusive: true })).length,
+        3
+      );
+
+      assert.strictEqual((await store.index_below("byIdNumber", 17)).length, 2);
+      assert.strictEqual(
+        (await store.index_below("byIdNumber", 17, { inclusive: true })).length,
+        3
+      );
+
+      assert.strictEqual(
+        (await store.index_range("byIdNumber", 16, 20)).length,
+        1
+      );
+      const a = await store.index_range("byIdNumber", 16, 20, {
+        lower_inclusive: true,
+      });
+      assert.strictEqual(a.length, 2);
+      const b = await store.index_range("byIdNumber", 16, 20, {
+        upper_inclusive: true,
+      });
+      assert.strictEqual(b.length, 2);
+      assert.isDefined(a.find((i) => i.id.number == 16));
+      assert.isDefined(b.find((i) => i.id.number == 20));
+
+      store.close();
+    }
+
+    {
+      const store = new ustore.Async<
         {
-          name: "byIdNumber",
-          path: "id.number",
-          unique: true,
+          id: {
+            slug?: string;
+            number: number;
+          };
+          genres: ("horror" | "fantasy" | "series")[];
+          vote: number;
         },
-        {
-          name: "bySlug",
-          path: "id.slug",
+        "byGenre" | "byIdNumber" | "byVote"
+      >();
+      await store.init("store", {
+        version: 2,
+        indexes: [
+          {
+            name: "byGenre",
+            path: "genres",
+            multi_entry: true,
+          },
+          {
+            name: "byIdNumber",
+            path: "id.number",
+            unique: true,
+          },
+          {
+            name: "byVote",
+            path: "vote",
+          },
+        ],
+        async migrate({ old_version, remove_index }) {
+          assert.strictEqual(old_version, 1);
+
+          remove_index("bySlug");
+
+          (await store.values()).map((entry) => {
+            assert.isUndefined(entry.vote);
+
+            store.update(`${entry.id.number}`, { vote: 0 });
+          });
         },
-      ],
-      async migrate({ old_version }) {
-        assert.strictEqual(old_version, 0);
-      },
-    });
+      });
 
-    await store.set("15", {
-      id: { number: 15 },
-      genres: ["horror"],
-    });
-    await store.set("17", {
-      id: { number: 17, slug: "rick" },
-      genres: ["series", "fantasy"],
-    });
-    await store.set("20", { id: { number: 20 }, genres: [] });
-    await store.set("16", {
-      id: { number: 16 },
-      genres: ["series"],
-    });
+      const indexes = store.indexes();
+      assert.strictEqual(indexes.length, 3);
+      // @ts-ignore
+      assert.isUndefined(indexes.find((index) => index == "bySlug"));
 
-    assert.strictEqual((await store.index("bySlug")).length, 1);
-    assert.strictEqual((await store.index("byIdNumber")).length, 4);
+      (await store.values()).map((entry) => {
+        assert.strictEqual(entry.vote, 0);
+      });
 
-    assert.strictEqual(
-      (await store.index_only("byGenre", "fantasy")).length,
-      1
-    );
-    assert.strictEqual((await store.index_only("byGenre", "horror")).length, 1);
-    assert.strictEqual((await store.index_only("byGenre", "series")).length, 2);
+      await store.update("15", {
+        vote: 10,
+      });
+      await store.update("17", {
+        vote: 8,
+      });
+      await store.update("20", { vote: 2 });
+      await store.update("16", {
+        vote: 5,
+      });
 
-    assert.strictEqual((await store.index_above("byIdNumber", 17)).length, 2);
-    assert.strictEqual(
-      (await store.index_above("byIdNumber", 17, { inclusive: true })).length,
-      3
-    );
+      await store.delete();
+    }
 
-    assert.strictEqual((await store.index_below("byIdNumber", 17)).length, 2);
-    assert.strictEqual(
-      (await store.index_below("byIdNumber", 17, { inclusive: true })).length,
-      3
-    );
+    {
+      try {
+        const store = new ustore.Async();
+        await store.init("store");
 
-    assert.strictEqual(
-      (await store.index_range("byIdNumber", 16, 20)).length,
-      1
-    );
-    const a = await store.index_range("byIdNumber", 16, 20, {
-      lower_inclusive: true,
-    });
-    assert.strictEqual(a.length, 2);
-    const b = await store.index_range("byIdNumber", 16, 20, {
-      upper_inclusive: true,
-    });
-    assert.strictEqual(b.length, 2);
-    assert.isDefined(a.find((i) => i.id.number == 16));
-    assert.isDefined(b.find((i) => i.id.number == 20));
+        await store.set("enola", "enola");
 
-    store.close();
+        await store.delete();
+      } catch (error) {
+        assert(0, "Should not fail");
+      }
+    }
+  });
 
-    const store2 = new ustore.Async<
-      {
-        id: {
-          slug?: string;
-          number: number;
-        };
-        genres: ("horror" | "fantasy" | "series")[];
-        vote: number;
-      },
-      "byGenre" | "byIdNumber" | "byVote"
-    >();
-    await store2.init("store", {
-      version: 2,
-      indexes: [
-        {
-          name: "byGenre",
-          path: "genres",
-          multi_entry: true,
-        },
-        {
-          name: "byIdNumber",
-          path: "id.number",
-          unique: true,
-        },
-        {
-          name: "byVote",
-          path: "vote",
-        },
-      ],
-      async migrate({ old_version, remove_index }) {
-        assert.strictEqual(old_version, 1);
+  await stopwatch("consume (async)", async () => {
+    {
+      const store = new ustore.Async<string>();
+      await store.init("store");
 
-        remove_index("bySlug");
+      await store.set("announcement", "This is the announcement");
 
-        (await store2.values()).map((entry) => {
-          assert.isUndefined(entry.vote);
+      const announcement = await store.consume("announcement");
+      assert.strictEqual(announcement, "This is the announcement");
 
-          store2.update(`${entry.id.number}`, { vote: 0 });
-        });
-      },
-    });
+      assert.isFalse(await store.has("announcement"));
 
-    const indexes = store2.indexes();
-    assert.strictEqual(indexes.length, 3);
-    // @ts-ignore
-    assert.isUndefined(indexes.find((index) => index == "bySlug"));
+      await store.delete();
+    }
 
-    (await store2.values()).map((entry) => {
-      assert.strictEqual(entry.vote, 0);
-    });
+    {
+      const store = new ustore.Async<{
+        announcements: string[];
+      }>();
+      await store.init("store", { consume_default: { announcements: [] } });
 
-    await store2.update("15", {
-      vote: 10,
-    });
-    await store2.update("17", {
-      vote: 8,
-    });
-    await store2.update("20", { vote: 2 });
-    await store2.update("16", {
-      vote: 5,
-    });
+      await store.set("movies", {
+        announcements: ["1", "2", "3"],
+      });
 
-    await store2.delete();
+      const movies = (await store.consume("movies"))!;
+      assert.strictEqual(movies.announcements[0], "1");
+      assert.strictEqual(movies.announcements[1], "2");
+      assert.strictEqual(movies.announcements[2], "3");
 
-    try {
-      const store3 = new ustore.Async();
-      await store3.init("store");
+      assert.isTrue(await store.has("movies"));
+      assert.strictEqual((await store.get("movies"))!.announcements.length, 0);
 
-      await store3.set("enola", "enola");
-
-      await store3.delete();
-    } catch (error) {
-      assert(0, "Should not fail");
+      await store.delete();
     }
   });
 }
