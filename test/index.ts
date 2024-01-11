@@ -1,7 +1,6 @@
 import { assert } from "chai";
 import "dotenv/config";
 import "fake-indexeddb/auto";
-import { openDB } from "idb";
 import { ustore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -790,7 +789,7 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  await stopwatch("migrate & indexes (async)", async () => {
+  await stopwatch("migration & indexes (async)", async () => {
     const store = new ustore.Async<
       {
         id: {
@@ -813,14 +812,13 @@ const stopwatch = async (label: string, fn: any) => {
           path: "id.number",
           unique: true,
         },
-      ],
-      async migrate({ old_version, create_index }) {
-        assert.strictEqual(old_version, 0);
-
-        create_index({
+        {
           name: "bySlug",
           path: "id.slug",
-        });
+        },
+      ],
+      async migrate({ old_version }) {
+        assert.strictEqual(old_version, 0);
       },
     });
 
@@ -875,7 +873,71 @@ const stopwatch = async (label: string, fn: any) => {
     assert.isDefined(a.find((i) => i.id.number == 16));
     assert.isDefined(b.find((i) => i.id.number == 20));
 
-    await store.delete();
+    store.close();
+
+    const store2 = new ustore.Async<
+      {
+        id: {
+          slug?: string;
+          number: number;
+        };
+        genres: ("horror" | "fantasy" | "series")[];
+        vote: number;
+      },
+      "byGenre" | "byIdNumber" | "byVote"
+    >();
+    await store2.init("store", {
+      version: 2,
+      indexes: [
+        {
+          name: "byGenre",
+          path: "genres",
+          multi_entry: true,
+        },
+        {
+          name: "byIdNumber",
+          path: "id.number",
+          unique: true,
+        },
+        {
+          name: "byVote",
+          path: "vote",
+        },
+      ],
+      async migrate({ old_version, remove_index }) {
+        assert.strictEqual(old_version, 1);
+
+        remove_index("bySlug");
+
+        (await store2.values()).map((entry) => {
+          assert.isUndefined(entry.vote);
+
+          store2.update(`${entry.id.number}`, { vote: 0 });
+        });
+      },
+    });
+
+    const indexes = store2.indexes();
+    assert.strictEqual(indexes.length, 3);
+    // @ts-ignore
+    assert.isUndefined(indexes.find((index) => index == "bySlug"));
+
+    (await store2.values()).map((entry) => {
+      assert.strictEqual(entry.vote, 0);
+    });
+
+    await store2.update("15", {
+      vote: 10,
+    });
+    await store2.update("17", {
+      vote: 8,
+    });
+    await store2.update("20", { vote: 2 });
+    await store2.update("16", {
+      vote: 5,
+    });
+
+    await store2.delete();
   });
 }
 

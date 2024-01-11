@@ -153,7 +153,6 @@ export namespace ustore {
         version?: number;
         migrate?: (data: {
           old_version: number;
-          create_index: (index: Index<U>) => void;
           remove_index: (name: string) => void;
         }) => Promise<void>;
         indexes?: Index<U>[];
@@ -207,12 +206,6 @@ export namespace ustore {
 
             migrating = options.migrate({
               old_version,
-              create_index({ name, path, multi_entry, unique }) {
-                table?.createIndex(name, `value.${path}`, {
-                  unique,
-                  multiEntry: multi_entry,
-                });
-              },
               remove_index(name) {
                 table?.deleteIndex(name);
               },
@@ -223,6 +216,30 @@ export namespace ustore {
 
       await migrating;
       this._db = db;
+    }
+
+    close() {
+      this._db.close();
+    }
+
+    indexes(): U[] {
+      const indexes: U[] = [];
+
+      const raw = this._db.transaction("store").store.indexNames;
+      for (let i = 0; i < raw.length; ++i) {
+        const index = raw.item(i);
+        switch (index) {
+          case "byExpiry":
+          case "byTimestamp":
+          case null:
+            break;
+          default:
+            indexes.push(index as U);
+            break;
+        }
+      }
+
+      return indexes;
     }
 
     async index(name: Index<U>["name"]) {
