@@ -138,7 +138,7 @@ export namespace ustore {
   }
 
   export class Async<
-    Value extends object | string,
+    Value extends object | string | any[],
     Indexes extends string = "There is no index available"
   > {
     private _db!: IDBPDatabase;
@@ -323,7 +323,9 @@ export namespace ustore {
             options: { ...cursor.value.options, ...options },
             value:
               typeof value == "object"
-                ? { ...cursor.value.value, ...value }
+                ? Array.isArray(value)
+                  ? [...cursor.value.value, ...value]
+                  : { ...cursor.value.value, ...value }
                 : value
                 ? value
                 : cursor.value.value,
@@ -568,7 +570,10 @@ export namespace ustore {
     options?: Partial<Options>;
   }
 
-  type Middlewares<Value extends object | string, Indexes extends string> =
+  type Middlewares<
+    Value extends object | string | any[],
+    Indexes extends string
+  > =
     | Partial<{
         get: (
           store: ustore.Async<Value, Indexes>,

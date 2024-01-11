@@ -998,6 +998,23 @@ const stopwatch = async (label: string, fn: any) => {
 
       await store.delete();
     }
+
+    {
+      const store = new ustore.Async<string[]>();
+      await store.init("store", { consume_default: [] });
+
+      await store.set("movies", ["1", "2", "3"]);
+
+      const movies = (await store.consume("movies"))!;
+      assert.strictEqual(movies[0], "1");
+      assert.strictEqual(movies[1], "2");
+      assert.strictEqual(movies[2], "3");
+
+      assert.isTrue(await store.has("movies"));
+      assert.strictEqual((await store.get("movies"))!.length, 0);
+
+      await store.delete();
+    }
   });
 }
 
