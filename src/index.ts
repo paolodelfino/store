@@ -143,6 +143,7 @@ export namespace ustore {
   > {
     private _db!: IDBPDatabase;
     private _middlewares: Middlewares<T, U>;
+    private _page_sz!: number;
 
     identifier!: Param<typeof this.init, 0>;
 
@@ -156,6 +157,7 @@ export namespace ustore {
           remove_index: (name: string) => void;
         }) => Promise<void>;
         indexes?: Index<U>[];
+        page_sz?: number;
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -164,6 +166,7 @@ export namespace ustore {
 
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
+      this._page_sz = options?.page_sz ?? 10;
 
       let migrating: Promise<unknown> | undefined;
       const temp_db = (table: any) => {
@@ -216,6 +219,31 @@ export namespace ustore {
 
       await migrating;
       this._db = db;
+    }
+
+    /**
+     * @param number Starts from 1
+     */
+    async page(number: number) {
+      const table = (await this._table()).index("byTimestamp");
+
+      let cursor = await table.openCursor();
+      cursor?.advance((number - 1) * this._page_sz);
+
+      const results: T[] = [];
+
+      for (
+        let i = 0;
+        i < this._page_sz && cursor;
+        ++i, cursor = await cursor.continue()
+      ) {
+        results.push(cursor.value.value);
+      }
+
+      return {
+        results,
+        has_next: !!cursor,
+      };
     }
 
     close() {
@@ -473,15 +501,11 @@ export namespace ustore {
     }
 
     async length() {
-      const table = await this._table();
-
-      return await table.count();
+      return await (await this._table()).count();
     }
 
     async values() {
-      const table = await this._table();
-
-      return (await table.index("byTimestamp").getAll()).map(
+      return (await (await this._table()).index("byTimestamp").getAll()).map(
         (entry) => entry.value
       ) as T[];
     }
