@@ -1016,6 +1016,42 @@ const stopwatch = async (label: string, fn: any) => {
       await store.delete();
     }
   });
+
+  await stopwatch("page system (async)", async () => {
+    const store = new ustore.Async<string>();
+    await store.init("store", {
+      page_sz: 3,
+    });
+
+    for (let i = 0; i < 7; ++i) {
+      await store.set(`${i}`, `${i}`);
+    }
+
+    let page = await store.page(1);
+    assert.isTrue(page.has_next);
+    assert.strictEqual(page.results.length, 3);
+    assert.strictEqual(page.results[0], "0");
+    assert.strictEqual(page.results[1], "1");
+    assert.strictEqual(page.results[2], "2");
+
+    page = await store.page(2);
+    assert.isTrue(page.has_next);
+    assert.strictEqual(page.results.length, 3);
+    assert.strictEqual(page.results[0], "3");
+    assert.strictEqual(page.results[1], "4");
+    assert.strictEqual(page.results[2], "5");
+
+    page = await store.page(3);
+    assert.isFalse(page.has_next);
+    assert.strictEqual(page.results.length, 1);
+    assert.strictEqual(page.results[0], "6");
+
+    page = await store.page(4);
+    assert.isFalse(page.has_next);
+    assert.strictEqual(page.results.length, 0);
+
+    await store.delete();
+  });
 }
 
 console.log("Done!");
