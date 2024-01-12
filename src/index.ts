@@ -1,4 +1,4 @@
-import { IDBPDatabase, deleteDB, openDB } from "idb";
+import { IDBPCursorWithValue, IDBPDatabase, deleteDB, openDB } from "idb";
 import { Memory_Storage } from "./utils";
 
 export namespace ustore {
@@ -168,6 +168,8 @@ export namespace ustore {
 
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
+      this._consume_default = options?.consume_default;
+      this._page_sz = options?.page_sz ?? 10;
 
       let migrating: Promise<unknown> | undefined;
       const temp_db = (table: any) => {
@@ -228,17 +230,22 @@ export namespace ustore {
     async page(number: number) {
       const table = (await this._table()).index("byTimestamp");
 
-      let cursor = await table.openCursor();
-      cursor?.advance((number - 1) * this._page_sz);
+      let cursor: IDBPCursorWithValue | null | undefined =
+        await table.openCursor();
 
-      const results: T[] = [];
+      const skip = (number - 1) * this._page_sz;
+      if (skip > 0) {
+        cursor = await cursor?.advance(skip);
+      }
 
-      for (
-        let i = 0;
-        i < this._page_sz && cursor;
-        ++i, cursor = await cursor.continue()
-      ) {
+      const results: Value[] = [];
+
+      let i = 0;
+      while (i < this._page_sz && cursor) {
         results.push(cursor.value.value);
+
+        ++i;
+        cursor = await cursor.continue();
       }
 
       return {

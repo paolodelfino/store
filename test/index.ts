@@ -1023,8 +1023,9 @@ const stopwatch = async (label: string, fn: any) => {
       page_sz: 3,
     });
 
-    for (let i = 0; i < 7; ++i) {
+    for (let i = 0; i < 13; ++i) {
       await store.set(`${i}`, `${i}`);
+      await time(1);
     }
 
     let page = await store.page(1);
@@ -1042,11 +1043,25 @@ const stopwatch = async (label: string, fn: any) => {
     assert.strictEqual(page.results[2], "5");
 
     page = await store.page(3);
-    assert.isFalse(page.has_next);
-    assert.strictEqual(page.results.length, 1);
+    assert.isTrue(page.has_next);
+    assert.strictEqual(page.results.length, 3);
     assert.strictEqual(page.results[0], "6");
+    assert.strictEqual(page.results[1], "7");
+    assert.strictEqual(page.results[2], "8");
 
     page = await store.page(4);
+    assert.isTrue(page.has_next);
+    assert.strictEqual(page.results.length, 3);
+    assert.strictEqual(page.results[0], "9");
+    assert.strictEqual(page.results[1], "10");
+    assert.strictEqual(page.results[2], "11");
+
+    page = await store.page(5);
+    assert.isFalse(page.has_next);
+    assert.strictEqual(page.results.length, 1);
+    assert.strictEqual(page.results[0], "12");
+
+    page = await store.page(6);
     assert.isFalse(page.has_next);
     assert.strictEqual(page.results.length, 0);
 
