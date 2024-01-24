@@ -259,30 +259,171 @@ export namespace ustore {
     }
 
     indexes(): Indexes[] {
-      const indexes: Indexes[] = [];
+      return Array.from(this._db.transaction("store").store.indexNames).filter(
+        (index) => index != "byExpiry" && index != "byTimestamp"
+      ) as Indexes[];
+    }
 
-      const raw = this._db.transaction("store").store.indexNames;
-      for (let i = 0; i < raw.length; ++i) {
-        const index = raw.item(i);
-        switch (index) {
-          case "byExpiry":
-          case "byTimestamp":
-          case null:
+    async index(name: Index<Indexes>["name"]): Promise<Value[]>;
+    async index(
+      name: Index<Indexes>["name"],
+      options:
+        | {
+            mode: "only";
+            value: any;
+          }
+        | {
+            mode: "above";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "below";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "range";
+            lower_value: any;
+            upper_value: any;
+            lower_inclusive?: boolean;
+            upper_inclusive?: boolean;
+          }
+    ): Promise<Value[]>;
+
+    /**
+     * @param page Starts from 1
+     */
+    async index(
+      name: Index<Indexes>["name"],
+      options: {
+        page: number;
+      } & (
+        | {
+            mode: "only";
+            value: any;
+          }
+        | {
+            mode: "above";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "below";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "range";
+            lower_value: any;
+            upper_value: any;
+            lower_inclusive?: boolean;
+            upper_inclusive?: boolean;
+          }
+      )
+    ): Promise<{ results: Value[]; has_next: boolean }>;
+    /**
+     * @param page Starts from 1
+     */
+    async index(
+      name: Index<Indexes>["name"],
+      options: { page: number }
+    ): Promise<{ results: Value[]; has_next: boolean }>;
+
+    async index(
+      name: Index<Indexes>["name"],
+      options?: {
+        page?: number;
+      } & (
+        | {
+            mode?: "only";
+            value?: any;
+          }
+        | {
+            mode?: "above";
+            value?: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode?: "below";
+            value?: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode?: "range";
+            lower_value?: any;
+            upper_value?: any;
+            lower_inclusive?: boolean;
+            upper_inclusive?: boolean;
+          }
+      )
+    ) {
+      const table = await this._table();
+
+      let values: any[];
+      if (!options || !options.mode) {
+        values = (await table.index(name).getAll()).sort(
+          (a, b) => a.timestamp - b.timestamp
+        );
+      } else {
+        switch (options.mode) {
+          case "only":
+            values = (
+              await table.index(name).getAll(IDBKeyRange.only(options.value))
+            ).sort((a, b) => a.timestamp - b.timestamp);
             break;
-          default:
-            indexes.push(index as Indexes);
+          case "above":
+            values = (
+              await table
+                .index(name)
+                .getAll(
+                  IDBKeyRange.lowerBound(options.value, !options.inclusive)
+                )
+            ).sort((a, b) => a.timestamp - b.timestamp);
+            break;
+          case "below":
+            values = (
+              await table
+                .index(name)
+                .getAll(
+                  IDBKeyRange.upperBound(options.value, !options.inclusive)
+                )
+            ).sort((a, b) => a.timestamp - b.timestamp);
+            break;
+          case "range":
+            values = (
+              await table
+                .index(name)
+                .getAll(
+                  IDBKeyRange.bound(
+                    options.lower_value,
+                    options.upper_value,
+                    !options.lower_inclusive,
+                    !options.upper_inclusive
+                  )
+                )
+            ).sort((a, b) => a.timestamp - b.timestamp);
             break;
         }
       }
 
-      return indexes;
-    }
+      if (!options?.page) {
+        return values.map((entry) => entry.value) as Value[];
+      }
 
-    async index(name: Index<Indexes>["name"]) {
-      const table = await this._table();
-      return (await table.index(name).getAll()).map(
-        (entry) => entry.value
-      ) as Value[];
+      const results: Value[] = [];
+
+      const end = options.page * this._page_sz;
+      for (let i = (options.page - 1) * this._page_sz; i < end; i++) {
+        if (values[i]) {
+          results.push(values[i].value);
+        }
+      }
+
+      return {
+        results,
+        has_next: !!values[end],
+      };
     }
 
     async index_only(name: Index<Indexes>["name"], value: any) {

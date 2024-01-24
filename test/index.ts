@@ -841,43 +841,97 @@ const stopwatch = async (label: string, fn: any) => {
       assert.strictEqual((await store.index("byIdNumber")).length, 4);
 
       assert.strictEqual(
-        (await store.index_only("byGenre", "fantasy")).length,
+        (
+          await store.index("byGenre", {
+            mode: "only",
+            value: "fantasy",
+          })
+        ).length,
         1
       );
       assert.strictEqual(
-        (await store.index_only("byGenre", "horror")).length,
+        (
+          await store.index("byGenre", {
+            mode: "only",
+            value: "horror",
+          })
+        ).length,
         1
       );
       assert.strictEqual(
-        (await store.index_only("byGenre", "series")).length,
+        (
+          await store.index("byGenre", {
+            mode: "only",
+            value: "series",
+          })
+        ).length,
         2
       );
 
-      assert.strictEqual((await store.index_above("byIdNumber", 17)).length, 2);
       assert.strictEqual(
-        (await store.index_above("byIdNumber", 17, { inclusive: true })).length,
-        3
-      );
-
-      assert.strictEqual((await store.index_below("byIdNumber", 17)).length, 2);
-      assert.strictEqual(
-        (await store.index_below("byIdNumber", 17, { inclusive: true })).length,
-        3
-      );
-
-      assert.strictEqual(
-        (await store.index_range("byIdNumber", 16, 20)).length,
+        (
+          await store.index("byIdNumber", {
+            mode: "above",
+            value: 17,
+          })
+        ).length,
         1
       );
-      const a = await store.index_range("byIdNumber", 16, 20, {
+      assert.strictEqual(
+        (
+          await store.index("byIdNumber", {
+            mode: "above",
+            value: 17,
+            inclusive: true,
+          })
+        ).length,
+        2
+      );
+
+      assert.strictEqual(
+        (
+          await store.index("byIdNumber", {
+            mode: "below",
+            value: 17,
+          })
+        ).length,
+        2
+      );
+      assert.strictEqual(
+        (
+          await store.index("byIdNumber", {
+            mode: "below",
+            value: 17,
+            inclusive: true,
+          })
+        ).length,
+        3
+      );
+
+      const c = await store.index("byIdNumber", {
+        mode: "range",
+        lower_value: 16,
+        upper_value: 20,
+      });
+      assert.strictEqual(c.length, 1);
+      assert.strictEqual(c[0].id.number, 17);
+      const a = await store.index("byIdNumber", {
+        mode: "range",
+        lower_value: 16,
+        upper_value: 20,
         lower_inclusive: true,
       });
       assert.strictEqual(a.length, 2);
-      const b = await store.index_range("byIdNumber", 16, 20, {
+      assert.isDefined(a.find((i) => i.id.number == 16));
+      assert.isDefined(a.find((i) => i.id.number == 17));
+      const b = await store.index("byIdNumber", {
+        mode: "range",
+        lower_value: 16,
+        upper_value: 20,
         upper_inclusive: true,
       });
       assert.strictEqual(b.length, 2);
-      assert.isDefined(a.find((i) => i.id.number == 16));
+      assert.isDefined(b.find((i) => i.id.number == 17));
       assert.isDefined(b.find((i) => i.id.number == 20));
 
       store.close();
@@ -1018,52 +1072,167 @@ const stopwatch = async (label: string, fn: any) => {
   });
 
   await stopwatch("page system (async)", async () => {
-    const store = new ustore.Async<string>();
+    const store = new ustore.Async<
+      {
+        i: number;
+      },
+      "byI"
+    >();
     await store.init("store", {
       page_sz: 3,
+      indexes: [{ name: "byI", path: "i" }],
     });
 
     for (let i = 0; i < 13; ++i) {
-      await store.set(`${i}`, `${i}`);
+      await store.set(`${i}`, { i });
       await time(1);
     }
 
-    let page = await store.page(1);
-    assert.isTrue(page.has_next);
-    assert.strictEqual(page.results.length, 3);
-    assert.strictEqual(page.results[0], "0");
-    assert.strictEqual(page.results[1], "1");
-    assert.strictEqual(page.results[2], "2");
+    let page: Awaited<ReturnType<typeof store.page>>;
 
-    page = await store.page(2);
-    assert.isTrue(page.has_next);
-    assert.strictEqual(page.results.length, 3);
-    assert.strictEqual(page.results[0], "3");
-    assert.strictEqual(page.results[1], "4");
-    assert.strictEqual(page.results[2], "5");
+    {
+      page = await store.page(1);
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 0);
+      assert.strictEqual(page.results[1].i, 1);
+      assert.strictEqual(page.results[2].i, 2);
 
-    page = await store.page(3);
-    assert.isTrue(page.has_next);
-    assert.strictEqual(page.results.length, 3);
-    assert.strictEqual(page.results[0], "6");
-    assert.strictEqual(page.results[1], "7");
-    assert.strictEqual(page.results[2], "8");
+      page = await store.page(2);
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 3);
+      assert.strictEqual(page.results[1].i, 4);
+      assert.strictEqual(page.results[2].i, 5);
 
-    page = await store.page(4);
-    assert.isTrue(page.has_next);
-    assert.strictEqual(page.results.length, 3);
-    assert.strictEqual(page.results[0], "9");
-    assert.strictEqual(page.results[1], "10");
-    assert.strictEqual(page.results[2], "11");
+      page = await store.page(3);
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 6);
+      assert.strictEqual(page.results[1].i, 7);
+      assert.strictEqual(page.results[2].i, 8);
 
-    page = await store.page(5);
-    assert.isFalse(page.has_next);
-    assert.strictEqual(page.results.length, 1);
-    assert.strictEqual(page.results[0], "12");
+      page = await store.page(4);
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 9);
+      assert.strictEqual(page.results[1].i, 10);
+      assert.strictEqual(page.results[2].i, 11);
 
-    page = await store.page(6);
-    assert.isFalse(page.has_next);
-    assert.strictEqual(page.results.length, 0);
+      page = await store.page(5);
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 1);
+      assert.strictEqual(page.results[0].i, 12);
+
+      page = await store.page(6);
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 0);
+    }
+
+    {
+      page = await store.index("byI", {
+        page: 1,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 0);
+      assert.strictEqual(page.results[1].i, 1);
+      assert.strictEqual(page.results[2].i, 2);
+
+      page = await store.index("byI", {
+        page: 2,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 3);
+      assert.strictEqual(page.results[1].i, 4);
+      assert.strictEqual(page.results[2].i, 5);
+
+      page = await store.index("byI", {
+        page: 3,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 6);
+      assert.strictEqual(page.results[1].i, 7);
+      assert.strictEqual(page.results[2].i, 8);
+
+      page = await store.index("byI", {
+        page: 4,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 9);
+      assert.strictEqual(page.results[1].i, 10);
+      assert.strictEqual(page.results[2].i, 11);
+
+      page = await store.index("byI", {
+        page: 5,
+      });
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 1);
+      assert.strictEqual(page.results[0].i, 12);
+
+      page = await store.index("byI", {
+        page: 6,
+      });
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 0);
+    }
+
+    {
+      page = await store.index("byI", {
+        page: 1,
+        mode: "above",
+        value: 2,
+        inclusive: true,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 2);
+      assert.strictEqual(page.results[1].i, 3);
+      assert.strictEqual(page.results[2].i, 4);
+      page = await store.index("byI", {
+        page: 2,
+        mode: "above",
+        value: 2,
+        inclusive: true,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 5);
+      assert.strictEqual(page.results[1].i, 6);
+      assert.strictEqual(page.results[2].i, 7);
+      page = await store.index("byI", {
+        page: 3,
+        mode: "above",
+        value: 2,
+        inclusive: true,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].i, 8);
+      assert.strictEqual(page.results[1].i, 9);
+      assert.strictEqual(page.results[2].i, 10);
+      page = await store.index("byI", {
+        page: 4,
+        mode: "above",
+        value: 2,
+        inclusive: true,
+      });
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 2);
+      assert.strictEqual(page.results[0].i, 11);
+      assert.strictEqual(page.results[1].i, 12);
+      page = await store.index("byI", {
+        page: 5,
+        mode: "above",
+        value: 2,
+        inclusive: true,
+      });
+      assert.isFalse(page.has_next);
+      assert.strictEqual(page.results.length, 0);
+    }
 
     await store.delete();
   });
