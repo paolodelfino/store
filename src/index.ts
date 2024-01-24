@@ -145,6 +145,7 @@ export namespace ustore {
     private _middlewares: Middlewares<Value, Indexes>;
     private _consume_default?: Value;
     private _page_sz!: number;
+    private _has_keypath: boolean = false;
 
     identifier!: Param<typeof this.init, 0>;
 
@@ -172,6 +173,7 @@ export namespace ustore {
       this._middlewares = options?.middlewares;
       this._consume_default = options?.consume_default;
       this._page_sz = options?.page_sz ?? 10;
+      this._has_keypath = !!options?.keypath;
 
       let migrating: Promise<void> | undefined;
       const temp_db = (table: any) => {
@@ -488,15 +490,17 @@ export namespace ustore {
       return !!(await (await this._table()).getKey(key));
     }
 
-    async set({
-      key,
-      value,
-      options = {},
-    }: {
-      key?: Key;
-      value: Value;
-      options: Partial<Options>;
-    }) {
+    async set(
+      {
+        value,
+        options = {},
+      }: {
+        value: Value;
+        options: Partial<Options>;
+      },
+      // TODO: Check if this works
+      key?: typeof this._has_keypath extends false ? Key : undefined
+    ) {
       await (
         await this._table("readwrite")
       ).put(
@@ -554,7 +558,6 @@ export namespace ustore {
       let cursor = await table.openCursor();
       while (cursor) {
         // TODO: Doesn't support numbers
-        // @ts-ignore
         set.set(cursor.key as Key, cursor.value);
 
         cursor = await cursor.continue();
