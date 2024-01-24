@@ -160,6 +160,8 @@ export namespace ustore {
         indexes?: Index<Indexes>[];
         consume_default?: Value;
         page_sz?: number;
+        autoincrement?: boolean;
+        keypath?: Value extends object ? string | string[] : undefined;
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -171,7 +173,7 @@ export namespace ustore {
       this._consume_default = options?.consume_default;
       this._page_sz = options?.page_sz ?? 10;
 
-      let migrating: Promise<unknown> | undefined;
+      let migrating: Promise<void> | undefined;
       const temp_db = (table: any) => {
         this._db = {
           // @ts-ignore
@@ -184,7 +186,12 @@ export namespace ustore {
       const db = await openDB(identifier, options?.version ?? 1, {
         upgrade(database, old_version, _, tx) {
           if (!database.objectStoreNames.contains(identifier)) {
-            database.createObjectStore(identifier);
+            database.createObjectStore(identifier, {
+              autoIncrement: options?.autoincrement,
+              keyPath: options?.keypath
+                ? `value.${options.keypath}`
+                : undefined,
+            });
           }
 
           const table = tx.objectStore(identifier);
@@ -361,50 +368,39 @@ export namespace ustore {
       const table = await this._table();
 
       let values: any[];
+
+      const index = table.index(name);
+
       if (!options || !options.mode) {
-        values = (await table.index(name).getAll()).sort(
+        values = (await index.getAll()).sort(
           (a, b) => a.timestamp - b.timestamp
         );
       } else {
+        let query: IDBKeyRange;
+
         switch (options.mode) {
           case "only":
-            values = (
-              await table.index(name).getAll(IDBKeyRange.only(options.value))
-            ).sort((a, b) => a.timestamp - b.timestamp);
+            query = IDBKeyRange.only(options.value);
             break;
           case "above":
-            values = (
-              await table
-                .index(name)
-                .getAll(
-                  IDBKeyRange.lowerBound(options.value, !options.inclusive)
-                )
-            ).sort((a, b) => a.timestamp - b.timestamp);
+            query = IDBKeyRange.lowerBound(options.value, !options.inclusive);
             break;
           case "below":
-            values = (
-              await table
-                .index(name)
-                .getAll(
-                  IDBKeyRange.upperBound(options.value, !options.inclusive)
-                )
-            ).sort((a, b) => a.timestamp - b.timestamp);
+            query = IDBKeyRange.upperBound(options.value, !options.inclusive);
             break;
           case "range":
-            values = (
-              await table
-                .index(name)
-                .getAll(
-                  IDBKeyRange.bound(
-                    options.lower_value,
-                    options.upper_value,
-                    !options.lower_inclusive,
-                    !options.upper_inclusive
-                  )
-                )
-            ).sort((a, b) => a.timestamp - b.timestamp);
+            query = IDBKeyRange.bound(
+              options.lower_value,
+              options.upper_value,
+              !options.lower_inclusive,
+              !options.upper_inclusive
+            );
             break;
         }
+
+        values = (await index.getAll(query)).sort(
+          (a, b) => a.timestamp - b.timestamp
+        );
       }
 
       if (!options?.page) {
@@ -426,94 +422,26 @@ export namespace ustore {
       };
     }
 
-    async index_only(name: Index<Indexes>["name"], value: any) {
-      const table = await this._table();
-      return (await table.index(name).getAll(IDBKeyRange.only(value))).map(
-        (entry) => entry.value
-      ) as Value[];
-    }
-
-    async index_above(
-      name: Index<Indexes>["name"],
-      value: any,
-      options?: { inclusive?: boolean }
-    ) {
-      const table = await this._table();
-      return (
-        await table
-          .index(name)
-          .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
-      ).map((entry) => entry.value) as Value[];
-    }
-
-    async index_below(
-      name: Index<Indexes>["name"],
-      value: any,
-      options?: { inclusive?: boolean }
-    ) {
-      const table = await this._table();
-      return (
-        await table
-          .index(name)
-          .getAll(IDBKeyRange.upperBound(value, !options?.inclusive))
-      ).map((entry) => entry.value) as Value[];
-    }
-
-    async index_range(
-      name: Index<Indexes>["name"],
-      lower_value: any,
-      upper_value: any,
-      options?: {
-        lower_inclusive?: boolean;
-        upper_inclusive?: boolean;
-      }
-    ) {
-      const table = await this._table();
-      return (
-        await table
-          .index(name)
-          .getAll(
-            IDBKeyRange.bound(
-              lower_value,
-              upper_value,
-              !options?.lower_inclusive,
-              !options?.upper_inclusive
-            )
-          )
-      ).map((entry) => entry.value) as Value[];
-    }
-
-    async update(
-      key: string,
-      value?: Partial<Value>,
-      options?: Partial<Options>
-    ) {
-      const table = await this._table("readwrite");
-
-      let cursor = await table.openCursor();
-      while (cursor) {
-        if (cursor.key == key) {
-          await cursor.update({
-            options: { ...cursor.value.options, ...options },
-            value:
-              typeof value == "object"
-                ? Array.isArray(value)
-                  ? [...cursor.value.value, ...value]
-                  : { ...cursor.value.value, ...value }
-                : value
-                ? value
-                : cursor.value.value,
-          });
-          return;
-        }
-
-        cursor = await cursor.continue();
+    async update(key: Key, value?: Partial<Value>, options?: Partial<Options>) {
+      const cursor = await (await this._table("readwrite")).openCursor(key);
+      if (!cursor) {
+        throw new Error(`cannot update non-existing entry: "${key}"`);
       }
 
-      throw new Error(`cannot update non-existing entry: "${key}"`);
+      await cursor.update({
+        options: { ...cursor.value.options, ...options },
+        value:
+          typeof value == "object"
+            ? Array.isArray(value)
+              ? [...cursor.value.value, ...value]
+              : { ...cursor.value.value, ...value }
+            : value
+            ? value
+            : cursor.value.value,
+      });
     }
 
-    async get_some(keys: string[]) {
+    async get_some(keys: Key[]) {
       const entries: Value[] = [];
 
       for (const key of keys) {
@@ -526,7 +454,7 @@ export namespace ustore {
       return entries;
     }
 
-    async get(key: string) {
+    async get(key: Key) {
       if (this._middlewares?.get) {
         const middleware_get = this._middlewares.get;
         delete this._middlewares["get"];
@@ -536,60 +464,42 @@ export namespace ustore {
         this._middlewares.get = middleware_get;
       }
 
-      const table = await this._table();
+      return (await (await this._table()).get(key))?.value as Value | undefined;
+    }
 
-      let cursor = await table.openCursor();
-      while (cursor) {
-        if (cursor.key == key) {
-          return cursor.value.value as Value;
+    async consume(key: Key) {
+      const cursor = await (await this._table("readwrite")).openCursor(key);
+      if (cursor) {
+        const value = cursor.value.value as Value;
+
+        if (this._consume_default != undefined) {
+          await cursor.update({
+            value: this._consume_default,
+          });
+        } else {
+          await cursor.delete();
         }
 
-        cursor = await cursor.continue();
+        return value;
       }
     }
 
-    async consume(key: string) {
-      const table = await this._table("readwrite");
-
-      let cursor = await table.openCursor();
-      while (cursor) {
-        if (cursor.key == key) {
-          const value = cursor.value.value as Value;
-
-          if (this._consume_default != undefined) {
-            await cursor.update({
-              value: this._consume_default,
-            });
-          } else {
-            await cursor.delete();
-          }
-
-          return value;
-        }
-
-        cursor = await cursor.continue();
-      }
+    async has(key: Key) {
+      return !!(await (await this._table()).getKey(key));
     }
 
-    async has(key: string) {
-      const table = await this._table();
-
-      let cursor = await table.openKeyCursor();
-      while (cursor) {
-        if (cursor.key == key) {
-          return true;
-        }
-
-        cursor = await cursor.continue();
-      }
-
-      return false;
-    }
-
-    async set(key: string, value: Value, options: Partial<Options> = {}) {
-      const table = await this._table("readwrite");
-
-      await table.put(
+    async set({
+      key,
+      value,
+      options = {},
+    }: {
+      key?: Key;
+      value: Value;
+      options: Partial<Options>;
+    }) {
+      await (
+        await this._table("readwrite")
+      ).put(
         {
           value,
           options,
@@ -624,29 +534,17 @@ export namespace ustore {
       }
     }
 
-    async rm(key: string) {
-      const table = await this._table("readwrite");
-
-      let cursor = await table.openCursor();
-      while (cursor) {
-        if (cursor.key == key) {
-          await cursor.delete();
-          return;
-        }
-
-        cursor = await cursor.continue();
-      }
+    async rm(key: Key) {
+      return (await (await this._table("readwrite")).openCursor(key))?.delete();
     }
 
     async clear() {
-      const table = await this._table("readwrite");
-
-      await table.clear();
+      return (await this._table("readwrite")).clear();
     }
 
-    async delete() {
+    delete() {
       this._db.close();
-      await deleteDB(this.identifier);
+      return deleteDB(this.identifier);
     }
 
     async export() {
@@ -655,7 +553,9 @@ export namespace ustore {
 
       let cursor = await table.openCursor();
       while (cursor) {
-        set.set(cursor.key as string, cursor.value);
+        // TODO: Doesn't support numbers
+        // @ts-ignore
+        set.set(cursor.key as Key, cursor.value);
 
         cursor = await cursor.continue();
       }
@@ -745,10 +645,7 @@ export namespace ustore {
     Indexes extends string
   > =
     | Partial<{
-        get: (
-          store: ustore.Async<Value, Indexes>,
-          key: string
-        ) => Promise<string>;
+        get: (store: ustore.Async<Value, Indexes>, key: Key) => Promise<string>;
       }>
     | undefined;
 
@@ -758,4 +655,6 @@ export namespace ustore {
     unique?: boolean;
     multi_entry?: boolean;
   }
+
+  type Key = string | number;
 }

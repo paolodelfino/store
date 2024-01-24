@@ -1,6 +1,7 @@
 import { assert } from "chai";
 import "dotenv/config";
 import "fake-indexeddb/auto";
+import { openDB } from "idb";
 import { ustore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -1236,6 +1237,52 @@ const stopwatch = async (label: string, fn: any) => {
 
     await store.delete();
   });
+
+  const table = (
+    await openDB("a", undefined, {
+      upgrade(database, oldVersion, newVersion, transaction, event) {
+        const table = database.createObjectStore("a", {
+          autoIncrement: true,
+          keyPath: "d",
+        });
+        table.createIndex("byC", "c");
+      },
+    })
+  ).transaction("a", "readwrite", { durability: "relaxed" }).store;
+
+  // await table.add(
+  //   {
+  //     mess: "hello",
+  //     d: 4,
+  //     c: -1,
+  //   },
+  //   "ciao"
+  // );
+  await table.put({
+    mess: "world",
+    c: -1,
+  });
+  await table.put({
+    mess: "2",
+    d: "2",
+    c: -1,
+  });
+  await table.put({
+    mess: "world",
+    c: -1,
+  });
+  // await table.put(
+  //   {
+  //     mess: "2",
+  //     d: 2,
+  //     c: -1,
+  //   },
+  //   "ciao2"
+  // );
+
+  console.log(await table.getAll(1));
+  console.log(await table.getAll(2));
+  console.log(await table.getAll("2"));
 }
 
 console.log("Done!");
