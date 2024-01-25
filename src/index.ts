@@ -145,7 +145,6 @@ export namespace ustore {
     private _middlewares: Middlewares<Value, Indexes>;
     private _consume_default?: Value;
     private _page_sz!: number;
-    private _has_keypath: boolean = false;
 
     identifier!: Param<typeof this.init, 0>;
 
@@ -162,7 +161,7 @@ export namespace ustore {
         consume_default?: Value;
         page_sz?: number;
         autoincrement?: boolean;
-        keypath?: Value extends object ? string | string[] : undefined;
+        keypath?: Value extends object ? Key : undefined;
       }
     ) {
       if (options?.version && options.version <= 0) {
@@ -173,7 +172,6 @@ export namespace ustore {
       this._middlewares = options?.middlewares;
       this._consume_default = options?.consume_default;
       this._page_sz = options?.page_sz ?? 10;
-      this._has_keypath = !!options?.keypath;
 
       let migrating: Promise<void> | undefined;
       const temp_db = (table: any) => {
@@ -427,7 +425,9 @@ export namespace ustore {
     async update(key: Key, value?: Partial<Value>, options?: Partial<Options>) {
       const cursor = await (await this._table("readwrite")).openCursor(key);
       if (!cursor) {
-        throw new Error(`cannot update non-existing entry: "${key}"`);
+        throw new Error(
+          `cannot update non-existing entry: (${typeof key}) "${key}"`
+        );
       }
 
       await cursor.update({
@@ -490,17 +490,11 @@ export namespace ustore {
       return !!(await (await this._table()).getKey(key));
     }
 
-    async set(
-      {
-        value,
-        options = {},
-      }: {
-        value: Value;
-        options: Partial<Options>;
-      },
-      // TODO: Check if this works
-      key?: typeof this._has_keypath extends false ? Key : undefined
-    ) {
+    /**
+     * @param value If keypath was set but autoincrement was not, make sure `value` has the prop keypath is pointing to
+     * @param key If keypath was set, it must be `undefined`. If both autoincrement and keypath were not set, it must be `Key`
+     */
+    async set(value: Value, key?: Key, options: Partial<Options> = {}) {
       await (
         await this._table("readwrite")
       ).put(
@@ -553,11 +547,10 @@ export namespace ustore {
 
     async export() {
       const table = await this._table();
-      const set = new Map<string, Entry<Value>>();
+      const set = new Map<Key, Entry<Value>>();
 
       let cursor = await table.openCursor();
       while (cursor) {
-        // TODO: Doesn't support numbers
         set.set(cursor.key as Key, cursor.value);
 
         cursor = await cursor.continue();
@@ -648,7 +641,7 @@ export namespace ustore {
     Indexes extends string
   > =
     | Partial<{
-        get: (store: ustore.Async<Value, Indexes>, key: Key) => Promise<string>;
+        get: (store: ustore.Async<Value, Indexes>, key: Key) => Promise<Key>;
       }>
     | undefined;
 

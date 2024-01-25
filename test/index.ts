@@ -1,7 +1,6 @@
 import { assert } from "chai";
 import "dotenv/config";
 import "fake-indexeddb/auto";
-import { openDB } from "idb";
 import { ustore } from "../dist/index.mjs";
 
 const time = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -260,15 +259,15 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("clear (async)", async () => {
     {
-      await mylist.set("234", { id: 234, slug: "enola-holmes" });
-      assert.isTrue(await mylist.has("234"));
+      await mylist.set({ id: 234, slug: "enola-holmes" }, 234);
+      assert.isTrue(await mylist.has(234));
 
-      await mylist.set("42", { id: 42, slug: "rick-and-morty" });
-      assert.isTrue(await mylist.has("42"));
+      await mylist.set({ id: 42, slug: "rick-and-morty" }, 42);
+      assert.isTrue(await mylist.has(42));
 
       await mylist.clear();
-      assert.isFalse(await mylist.has("234"));
-      assert.isFalse(await mylist.has("42"));
+      assert.isFalse(await mylist.has(234));
+      assert.isFalse(await mylist.has(42));
     }
 
     {
@@ -286,13 +285,13 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("set (async)", async () => {
     {
-      await mylist.set("5473", { id: 5473, slug: "rick-and-morty" });
-      assert.strictEqual((await mylist.get("5473"))!.id, 5473);
-      assert.strictEqual((await mylist.get("5473"))!.slug, "rick-and-morty");
+      await mylist.set({ id: 5473, slug: "rick-and-morty" }, 5473);
+      assert.strictEqual((await mylist.get(5473))!.id, 5473);
+      assert.strictEqual((await mylist.get(5473))!.slug, "rick-and-morty");
 
-      await mylist.set("5473", { id: 2000, slug: "rick" });
-      assert.strictEqual((await mylist.get("5473"))!.id, 2000);
-      assert.strictEqual((await mylist.get("5473"))!.slug, "rick");
+      await mylist.set({ id: 2000, slug: "rick" }, 5473);
+      assert.strictEqual((await mylist.get(5473))!.id, 2000);
+      assert.strictEqual((await mylist.get(5473))!.slug, "rick");
 
       await mylist.clear();
     }
@@ -301,7 +300,7 @@ const stopwatch = async (label: string, fn: any) => {
       await history.set("enola", "enola");
       assert.strictEqual(await history.get("enola"), "enola");
 
-      await history.set("enola", "enola holmes");
+      await history.set("enola holmes", "enola");
       assert.strictEqual(await history.get("enola"), "enola holmes");
 
       await history.clear();
@@ -312,7 +311,7 @@ const stopwatch = async (label: string, fn: any) => {
     {
       assert.isFalse(await mylist.has("rick"));
 
-      await mylist.set("rick", { id: 5473, slug: "rick-and-morty" });
+      await mylist.set({ id: 5473, slug: "rick-and-morty" }, "rick");
 
       assert.isTrue(await mylist.has("rick"));
 
@@ -332,10 +331,10 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("get (async)", async () => {
     {
-      assert.isUndefined(await mylist.get("5473"));
+      assert.isUndefined(await mylist.get(5473));
 
-      await mylist.set("5473", { id: 5473, slug: "rick-and-morty" });
-      const rick = (await mylist.get("5473"))!;
+      await mylist.set({ id: 5473, slug: "rick-and-morty" }, 5473);
+      const rick = (await mylist.get(5473))!;
       assert.isDefined(rick);
 
       assert.strictEqual(rick.id, 5473);
@@ -359,12 +358,12 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("get_some (async)", async () => {
     {
-      assert.strictEqual((await mylist.get_some(["5473", "100"])).length, 0);
+      assert.strictEqual((await mylist.get_some([5473, 100])).length, 0);
 
-      await mylist.set("5473", { id: 5473, slug: "rick-and-morty" });
-      await mylist.set("100", { id: 100, slug: "enola-holmes" });
+      await mylist.set({ id: 5473, slug: "rick-and-morty" }, 5473);
+      await mylist.set({ id: 100, slug: "enola-holmes" }, 100);
 
-      const some = await mylist.get_some(["5473", "100"]);
+      const some = await mylist.get_some([5473, 100]);
       assert.strictEqual(some.length, 2);
 
       assert.strictEqual(some[0].id, 5473);
@@ -396,34 +395,32 @@ const stopwatch = async (label: string, fn: any) => {
   await stopwatch("update (async)", async () => {
     {
       await mylist
-        .update("100", { slug: "rick" })
+        .update(100, { slug: "rick" })
         .then(() => assert(0, "Should not succeed"))
         .catch((err) => {
           assert.strictEqual(
             err.message,
-            'cannot update non-existing entry: "100"'
+            'cannot update non-existing entry: (number) "100"'
           );
         });
 
-      await mylist.set(
-        "100",
-        { slug: "enola", id: 100 },
-        { expiry: Date.now() + 2000 }
-      );
-      let enola = (await mylist.get("100"))!;
+      await mylist.set({ slug: "enola", id: 100 }, 100, {
+        expiry: Date.now() + 2000,
+      });
+      let enola = (await mylist.get(100))!;
       assert.strictEqual(enola.slug, "enola");
 
       await mylist.update(
-        "100",
+        100,
         { slug: "enola-holmes" },
         { expiry: Date.now() + 200 }
       );
-      enola = (await mylist.get("100"))!;
+      enola = (await mylist.get(100))!;
       assert.strictEqual(enola.slug, "enola-holmes");
       assert.strictEqual(enola.id, 100);
 
       await time(200);
-      assert.isFalse(await mylist.has("100"));
+      assert.isFalse(await mylist.has(100));
 
       await mylist.clear();
     }
@@ -435,7 +432,7 @@ const stopwatch = async (label: string, fn: any) => {
         .catch((err) => {
           assert.strictEqual(
             err.message,
-            'cannot update non-existing entry: "enola"'
+            'cannot update non-existing entry: (string) "enola"'
           );
         });
 
@@ -471,7 +468,7 @@ const stopwatch = async (label: string, fn: any) => {
           },
         });
 
-        await mylist.set("enola", { slug: "enola" });
+        await mylist.set({ slug: "enola" }, "enola");
         const fakerick = (await mylist.get("rick"))!;
         assert.isDefined(fakerick);
         assert.strictEqual(fakerick.slug, "enola");
@@ -496,7 +493,7 @@ const stopwatch = async (label: string, fn: any) => {
           },
         });
 
-        await mylist.set("enola", { slug: "enola" });
+        await mylist.set({ slug: "enola" }, "enola");
         assert.strictEqual((await mylist.get("enola"))!.slug, "dirty_enola");
 
         await mylist.clear();
@@ -550,11 +547,11 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("rm (async)", async () => {
     {
-      await mylist.set("100", { slug: "enola", id: 100 });
-      assert.isTrue(await mylist.has("100"));
+      await mylist.set({ slug: "enola", id: 100 }, 100);
+      assert.isTrue(await mylist.has(100));
 
-      await mylist.rm("100");
-      assert.isUndefined(await mylist.get("100"));
+      await mylist.rm(100);
+      assert.isUndefined(await mylist.get(100));
 
       await mylist.clear();
     }
@@ -606,7 +603,7 @@ const stopwatch = async (label: string, fn: any) => {
     {
       assert.strictEqual(await mylist.length(), 0);
 
-      await mylist.set("100", { slug: "enola-holmes", id: 100 });
+      await mylist.set({ slug: "enola-holmes", id: 100 }, 100);
 
       assert.strictEqual(await mylist.length(), 1);
 
@@ -626,8 +623,8 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("import, export (async)", async () => {
     {
-      await mylist.set("234", { id: 234, slug: "enola-holmes" });
-      await mylist.set("42", { id: 42, slug: "rick-and-morty" });
+      await mylist.set({ id: 234, slug: "enola-holmes" }, 234);
+      await mylist.set({ id: 42, slug: "rick-and-morty" }, 42);
 
       const newstore = new ustore.Async<{
         slug: string;
@@ -642,21 +639,21 @@ const stopwatch = async (label: string, fn: any) => {
       }
 
       {
-        await newstore.rm("234");
-        await newstore.update("42", { id: 40 });
-        await newstore.set("100", { id: 100, slug: "few" });
+        await newstore.rm(234);
+        await newstore.update(42, { id: 40 });
+        await newstore.set({ id: 100, slug: "few" }, 100);
 
         assert.strictEqual(await newstore.length(), 2);
 
-        assert.strictEqual((await mylist.get("42"))?.id, 42);
+        assert.strictEqual((await mylist.get(42))?.id, 42);
 
         assert.strictEqual(await mylist.length(), 2);
         await mylist.import(await newstore.export(), true);
         assert.strictEqual(await mylist.length(), 3);
 
-        assert.isTrue(await mylist.has("234"));
-        assert.strictEqual((await mylist.get("42"))?.id, 40);
-        assert.isTrue(await mylist.has("100"));
+        assert.isTrue(await mylist.has(234));
+        assert.strictEqual((await mylist.get(42))?.id, 40);
+        assert.isTrue(await mylist.has(100));
       }
 
       await mylist.clear();
@@ -701,13 +698,13 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("values (async)", async () => {
     {
-      await mylist.set("234", { id: 234, slug: "enola-holmes" });
-      await mylist.set("42", { id: 42, slug: "rick-and-morty" });
+      await mylist.set({ id: 234, slug: "enola-holmes" }, 234);
+      await mylist.set({ id: 42, slug: "rick-and-morty" }, 42);
 
       const entries = await mylist.values();
       assert.strictEqual(entries.length, 2);
-      assert.strictEqual(entries[0].slug, "enola-holmes");
-      assert.strictEqual(entries[1].slug, "rick-and-morty");
+      assert.isDefined(entries.find((e) => e.slug == "enola-holmes"));
+      assert.isDefined(entries.find((e) => e.slug == "rick-and-morty"));
 
       await mylist.clear();
     }
@@ -718,8 +715,8 @@ const stopwatch = async (label: string, fn: any) => {
 
       const entries = await history.values();
       assert.strictEqual(entries.length, 2);
-      assert.strictEqual(entries[0], "enola");
-      assert.strictEqual(entries[1], "rick");
+      assert.isDefined(entries.find((e) => e == "enola"));
+      assert.isDefined(entries.find((e) => e == "rick"));
 
       await history.clear();
     }
@@ -727,16 +724,14 @@ const stopwatch = async (label: string, fn: any) => {
 
   await stopwatch("expiry (async)", async () => {
     {
-      await mylist.set(
-        "234",
-        { id: 234, slug: "enola-holmes" },
-        { expiry: Date.now() + 200 }
-      );
+      await mylist.set({ id: 234, slug: "enola-holmes" }, 234, {
+        expiry: Date.now() + 200,
+      });
 
-      assert.isTrue(await mylist.has("234"));
+      assert.isTrue(await mylist.has(234));
 
       await time(200);
-      assert.isFalse(await mylist.has("234"));
+      assert.isFalse(await mylist.has(234));
     }
 
     {
@@ -755,10 +750,13 @@ const stopwatch = async (label: string, fn: any) => {
 
       for (let i = 0; i < 100; ++i) {
         is.push(i.toString());
-        await mylist.set(i.toString(), {
-          id: i,
-          slug: i.toString(),
-        });
+        await mylist.set(
+          {
+            id: i,
+            slug: i.toString(),
+          },
+          i.toString()
+        );
         await time(1);
       }
 
@@ -824,19 +822,28 @@ const stopwatch = async (label: string, fn: any) => {
         },
       });
 
-      await store.set("15", {
-        id: { number: 15 },
-        genres: ["horror"],
-      });
-      await store.set("17", {
-        id: { number: 17, slug: "rick" },
-        genres: ["series", "fantasy"],
-      });
-      await store.set("20", { id: { number: 20 }, genres: [] });
-      await store.set("16", {
-        id: { number: 16 },
-        genres: ["series"],
-      });
+      await store.set(
+        {
+          id: { number: 15 },
+          genres: ["horror"],
+        },
+        15
+      );
+      await store.set(
+        {
+          id: { number: 17, slug: "rick" },
+          genres: ["series", "fantasy"],
+        },
+        17
+      );
+      await store.set({ id: { number: 20 }, genres: [] }, 20);
+      await store.set(
+        {
+          id: { number: 16 },
+          genres: ["series"],
+        },
+        16
+      );
 
       assert.strictEqual((await store.index("bySlug")).length, 1);
       assert.strictEqual((await store.index("byIdNumber")).length, 4);
@@ -976,7 +983,7 @@ const stopwatch = async (label: string, fn: any) => {
           (await store.values()).map((entry) => {
             assert.isUndefined(entry.vote);
 
-            store.update(`${entry.id.number}`, { vote: 0 });
+            store.update(entry.id.number, { vote: 0 });
           });
         },
       });
@@ -990,14 +997,14 @@ const stopwatch = async (label: string, fn: any) => {
         assert.strictEqual(entry.vote, 0);
       });
 
-      await store.update("15", {
+      await store.update(15, {
         vote: 10,
       });
-      await store.update("17", {
+      await store.update(17, {
         vote: 8,
       });
-      await store.update("20", { vote: 2 });
-      await store.update("16", {
+      await store.update(20, { vote: 2 });
+      await store.update(16, {
         vote: 5,
       });
 
@@ -1023,7 +1030,7 @@ const stopwatch = async (label: string, fn: any) => {
       const store = new ustore.Async<string>();
       await store.init("store");
 
-      await store.set("announcement", "This is the announcement");
+      await store.set("This is the announcement", "announcement");
 
       const announcement = await store.consume("announcement");
       assert.strictEqual(announcement, "This is the announcement");
@@ -1037,11 +1044,16 @@ const stopwatch = async (label: string, fn: any) => {
       const store = new ustore.Async<{
         announcements: string[];
       }>();
-      await store.init("store", { consume_default: { announcements: [] } });
-
-      await store.set("movies", {
-        announcements: ["1", "2", "3"],
+      await store.init("store", {
+        consume_default: { announcements: [] },
       });
+
+      await store.set(
+        {
+          announcements: ["1", "2", "3"],
+        },
+        "movies"
+      );
 
       const movies = (await store.consume("movies"))!;
       assert.strictEqual(movies.announcements[0], "1");
@@ -1058,7 +1070,7 @@ const stopwatch = async (label: string, fn: any) => {
       const store = new ustore.Async<string[]>();
       await store.init("store", { consume_default: [] });
 
-      await store.set("movies", ["1", "2", "3"]);
+      await store.set(["1", "2", "3"], "movies");
 
       const movies = (await store.consume("movies"))!;
       assert.strictEqual(movies[0], "1");
@@ -1085,7 +1097,7 @@ const stopwatch = async (label: string, fn: any) => {
     });
 
     for (let i = 0; i < 13; ++i) {
-      await store.set(`${i}`, { i });
+      await store.set({ i }, `${i}`);
       await time(1);
     }
 
@@ -1238,51 +1250,44 @@ const stopwatch = async (label: string, fn: any) => {
     await store.delete();
   });
 
-  const table = (
-    await openDB("a", undefined, {
-      upgrade(database, oldVersion, newVersion, transaction, event) {
-        const table = database.createObjectStore("a", {
-          autoIncrement: true,
-          keyPath: "d",
-        });
-        table.createIndex("byC", "c");
-      },
-    })
-  ).transaction("a", "readwrite", { durability: "relaxed" }).store;
+  await stopwatch("autoincrement (async)", async () => {
+    const store = new ustore.Async<string>();
+    await store.init("store", {
+      autoincrement: true,
+    });
 
-  // await table.add(
-  //   {
-  //     mess: "hello",
-  //     d: 4,
-  //     c: -1,
-  //   },
-  //   "ciao"
-  // );
-  await table.put({
-    mess: "world",
-    c: -1,
-  });
-  await table.put({
-    mess: "2",
-    d: "2",
-    c: -1,
-  });
-  await table.put({
-    mess: "world",
-    c: -1,
-  });
-  // await table.put(
-  //   {
-  //     mess: "2",
-  //     d: 2,
-  //     c: -1,
-  //   },
-  //   "ciao2"
-  // );
+    await store.set("enola");
+    await store.set("rick");
 
-  console.log(await table.getAll(1));
-  console.log(await table.getAll(2));
-  console.log(await table.getAll("2"));
+    assert.strictEqual(await store.get(1), "enola");
+    assert.strictEqual(await store.get(2), "rick");
+
+    await store.delete();
+  });
+
+  await stopwatch("keypath (async)", async () => {
+    const store = new ustore.Async<{
+      id: number;
+      slug: string;
+    }>();
+    await store.init("store", {
+      keypath: "id",
+    });
+
+    await store.set({
+      id: 345,
+      slug: "enola",
+    });
+    await store.set({
+      id: 521,
+      slug: "rick",
+    });
+
+    assert.strictEqual((await store.get(345))?.slug, "enola");
+    assert.strictEqual((await store.get(521))?.slug, "rick");
+
+    await store.delete();
+  });
 }
 
 console.log("Done!");
