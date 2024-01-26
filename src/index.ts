@@ -148,6 +148,10 @@ export namespace ustore {
 
     identifier!: Param<typeof this.init, 0>;
 
+    /**
+     * @param page_sz Defaults to 10
+     * @param version Starts from 1
+     */
     async init(
       identifier: string,
       options?: {
