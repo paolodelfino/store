@@ -249,11 +249,14 @@ export namespace ustore {
         cursor = await cursor?.advance(skip);
       }
 
-      const results: Value[] = [];
+      const results: Key_Value_Pair<Value>[] = [];
 
       let i = 0;
       while (i < this._page_sz && cursor) {
-        results.push(cursor.value.value);
+        results.push({
+          value: cursor.value.value,
+          key: cursor.key as Key,
+        });
 
         ++i;
         cursor = await cursor.continue();
@@ -275,7 +278,7 @@ export namespace ustore {
       ) as Indexes[];
     }
 
-    async index(name: Index<Indexes>["name"]): Promise<Value[]>;
+    async index(name: Index<Indexes>["name"]): Promise<Key_Value_Pair<Value>[]>;
     async index(
       name: Index<Indexes>["name"],
       options:
@@ -300,7 +303,7 @@ export namespace ustore {
             lower_inclusive?: boolean;
             upper_inclusive?: boolean;
           }
-    ): Promise<Value[]>;
+    ): Promise<Key_Value_Pair<Value>[]>;
 
     /**
      * @param page Starts from 1
@@ -332,14 +335,14 @@ export namespace ustore {
             upper_inclusive?: boolean;
           }
       )
-    ): Promise<{ results: Value[]; has_next: boolean }>;
+    ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
     /**
      * @param page Starts from 1
      */
     async index(
       name: Index<Indexes>["name"],
       options: { page: number }
-    ): Promise<{ results: Value[]; has_next: boolean }>;
+    ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
 
     async index(
       name: Index<Indexes>["name"],
@@ -371,17 +374,10 @@ export namespace ustore {
     ) {
       const table = await this._table();
 
-      let values: any[];
-
       const index = table.index(name);
 
-      if (!options || !options.mode) {
-        values = (await index.getAll()).sort(
-          (a, b) => a.timestamp - b.timestamp
-        );
-      } else {
-        let query: IDBKeyRange;
-
+      let query: IDBKeyRange | undefined = undefined;
+      if (options?.mode) {
         switch (options.mode) {
           case "only":
             query = IDBKeyRange.only(options.value);
@@ -401,22 +397,39 @@ export namespace ustore {
             );
             break;
         }
-
-        values = (await index.getAll(query)).sort(
-          (a, b) => a.timestamp - b.timestamp
-        );
       }
+
+      let values: (Key_Value_Pair<Value> & { timestamp: number })[] = [];
+
+      let cursor = await index.openCursor(query);
+      while (cursor) {
+        values.push({
+          key: cursor.key as Key,
+          value: cursor.value.value,
+          timestamp: cursor.value.timestamp,
+        });
+
+        cursor = await cursor.continue();
+      }
+
+      values.sort((a, b) => a.timestamp - b.timestamp);
 
       if (!options?.page) {
-        return values.map((entry) => entry.value) as Value[];
+        return values.map((entry) => ({
+          value: entry.value,
+          key: entry.key,
+        }));
       }
 
-      const results: Value[] = [];
+      const results: Key_Value_Pair<Value>[] = [];
 
       const end = options.page * this._page_sz;
       for (let i = (options.page - 1) * this._page_sz; i < end; i++) {
         if (values[i]) {
-          results.push(values[i].value);
+          results.push({
+            value: values[i].value,
+            key: values[i].key,
+          });
         }
       }
 
@@ -426,13 +439,48 @@ export namespace ustore {
       };
     }
 
-    async update(key: Key, value?: Partial<Value>, options?: Partial<Options>) {
+    async update(
+      key: Key,
+      data: (old: Async_Entry<Value>) => Promise<{
+        value?: Partial<Value>;
+        options?: Partial<Options>;
+      }>
+    ): Promise<void>;
+    async update(
+      key: Key,
+      data: {
+        value?: Partial<Value>;
+        options?: Partial<Options>;
+      }
+    ): Promise<void>;
+
+    async update(
+      key: Key,
+      data:
+        | ((old: Async_Entry<Value>) => Promise<{
+            value?: Partial<Value>;
+            options?: Partial<Options>;
+          }>)
+        | {
+            value?: Partial<Value>;
+            options?: Partial<Options>;
+          }
+    ) {
       const cursor = await (await this._table("readwrite")).openCursor(key);
       if (!cursor) {
         throw new Error(
           `cannot update non-existing entry: (${typeof key}) "${key}"`
         );
       }
+
+      const { options, value } =
+        typeof data == "function"
+          ? await data({
+              options: cursor.value.options,
+              timestamp: cursor.value.timestamp,
+              value: cursor.value.value,
+            })
+          : data;
 
       await cursor.update({
         options: { ...cursor.value.options, ...options },
@@ -470,13 +518,15 @@ export namespace ustore {
         this._middlewares.get = middleware_get;
       }
 
-      return (await (await this._table()).get(key))?.value as Value | undefined;
+      return (await (await this._table()).get(key))?.value as
+        | Async_Entry<Value>["value"]
+        | undefined;
     }
 
     async consume(key: Key) {
       const cursor = await (await this._table("readwrite")).openCursor(key);
       if (cursor) {
-        const value = cursor.value.value as Value;
+        const value = cursor.value.value as Async_Entry<Value>["value"];
 
         if (this._consume_default != undefined) {
           await cursor.update({
@@ -498,8 +548,12 @@ export namespace ustore {
      * @param value If keypath was set but autoincrement was not, make sure `value` has the prop keypath is pointing to
      * @param key If keypath was set, it must be `undefined`. If both autoincrement and keypath were not set, it must be `Key`
      */
-    async set(value: Value, key?: Key, options: Partial<Options> = {}) {
-      await (
+    async set(
+      value: Value,
+      key?: Key,
+      options: Async_Entry<Value>["options"] = {}
+    ) {
+      return (await (
         await this._table("readwrite")
       ).put(
         {
@@ -508,7 +562,7 @@ export namespace ustore {
           timestamp: Date.now(),
         },
         key
-      );
+      )) as Key;
     }
 
     async debug() {
@@ -584,8 +638,11 @@ export namespace ustore {
 
     async values() {
       return (await (await this._table()).index("byTimestamp").getAll()).map(
-        (entry) => entry.value
-      ) as Value[];
+        (entry) => ({
+          key: entry.key,
+          value: entry.value,
+        })
+      ) as Key_Value_Pair<Value>[];
     }
 
     private async _table<T extends "readonly" | "readwrite" = "readonly">(
@@ -657,4 +714,15 @@ export namespace ustore {
   }
 
   type Key = string | number;
+
+  interface Async_Entry<T> {
+    value: T;
+    options: Partial<Options>;
+    timestamp: number;
+  }
+
+  interface Key_Value_Pair<T> {
+    value: T;
+    key: Key;
+  }
 }

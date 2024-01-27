@@ -395,7 +395,7 @@ const stopwatch = async (label: string, fn: any) => {
   await stopwatch("update (async)", async () => {
     {
       await mylist
-        .update(100, { slug: "rick" })
+        .update(100, { value: { slug: "rick" } })
         .then(() => assert(0, "Should not succeed"))
         .catch((err) => {
           assert.strictEqual(
@@ -410,11 +410,10 @@ const stopwatch = async (label: string, fn: any) => {
       let enola = (await mylist.get(100))!;
       assert.strictEqual(enola.slug, "enola");
 
-      await mylist.update(
-        100,
-        { slug: "enola-holmes" },
-        { expiry: Date.now() + 200 }
-      );
+      await mylist.update(100, {
+        value: { slug: "enola-holmes" },
+        options: { expiry: Date.now() + 200 },
+      });
       enola = (await mylist.get(100))!;
       assert.strictEqual(enola.slug, "enola-holmes");
       assert.strictEqual(enola.id, 100);
@@ -427,7 +426,7 @@ const stopwatch = async (label: string, fn: any) => {
 
     {
       await history
-        .update("enola", "enola")
+        .update("enola", { value: "enola" })
         .then(() => assert(0, "Should not succeed"))
         .catch((err) => {
           assert.strictEqual(
@@ -440,8 +439,11 @@ const stopwatch = async (label: string, fn: any) => {
       let enola = (await history.get("enola"))!;
       assert.strictEqual(enola, "enola");
 
-      await history.update("enola", "enola-holmes", {
-        expiry: Date.now() + 200,
+      await history.update("enola", {
+        value: "enola-holmes",
+        options: {
+          expiry: Date.now() + 200,
+        },
       });
       enola = (await history.get("enola"))!;
       assert.strictEqual(enola, "enola-holmes");
@@ -485,7 +487,9 @@ const stopwatch = async (label: string, fn: any) => {
               assert.isDefined(entry);
 
               await store.update(key, {
-                slug: "dirty_" + entry.slug,
+                value: {
+                  slug: "dirty_" + entry.slug,
+                },
               });
 
               return key;
@@ -530,7 +534,9 @@ const stopwatch = async (label: string, fn: any) => {
               const entry = (await store.get(key))!;
               assert.isDefined(entry);
 
-              await store.update(key, "dirty_" + entry);
+              await store.update(key, {
+                value: "dirty_" + entry,
+              });
 
               return key;
             },
@@ -640,7 +646,9 @@ const stopwatch = async (label: string, fn: any) => {
 
       {
         await newstore.rm(234);
-        await newstore.update(42, { id: 40 });
+        await newstore.update(42, {
+          value: { id: 40 },
+        });
         await newstore.set({ id: 100, slug: "few" }, 100);
 
         assert.strictEqual(await newstore.length(), 2);
@@ -675,7 +683,7 @@ const stopwatch = async (label: string, fn: any) => {
 
       {
         await newstore.rm("enola");
-        await newstore.update("rick", "rick and morty");
+        await newstore.update("rick", { value: "rick and morty" });
         await newstore.set("few", "few");
 
         assert.strictEqual(await newstore.length(), 2);
@@ -703,8 +711,8 @@ const stopwatch = async (label: string, fn: any) => {
 
       const entries = await mylist.values();
       assert.strictEqual(entries.length, 2);
-      assert.isDefined(entries.find((e) => e.slug == "enola-holmes"));
-      assert.isDefined(entries.find((e) => e.slug == "rick-and-morty"));
+      assert.isDefined(entries.find((e) => e.value.slug == "enola-holmes"));
+      assert.isDefined(entries.find((e) => e.value.slug == "rick-and-morty"));
 
       await mylist.clear();
     }
@@ -715,8 +723,8 @@ const stopwatch = async (label: string, fn: any) => {
 
       const entries = await history.values();
       assert.strictEqual(entries.length, 2);
-      assert.isDefined(entries.find((e) => e == "enola"));
-      assert.isDefined(entries.find((e) => e == "rick"));
+      assert.isDefined(entries.find((e) => e.value == "enola"));
+      assert.isDefined(entries.find((e) => e.value == "rick"));
 
       await history.clear();
     }
@@ -763,7 +771,7 @@ const stopwatch = async (label: string, fn: any) => {
       const is_store = await mylist.values();
 
       for (let i = 0; i < is.length; ++i) {
-        assert.strictEqual(is[i], is_store[i].slug);
+        assert.strictEqual(is[i], is_store[i].value.slug);
       }
 
       await mylist.clear();
@@ -781,7 +789,7 @@ const stopwatch = async (label: string, fn: any) => {
       const is_store = await history.values();
 
       for (let i = 0; i < is.length; ++i) {
-        assert.strictEqual(is[i], is_store[i]);
+        assert.strictEqual(is[i], is_store[i].value);
       }
 
       await history.clear();
@@ -922,7 +930,7 @@ const stopwatch = async (label: string, fn: any) => {
         upper_value: 20,
       });
       assert.strictEqual(c.length, 1);
-      assert.strictEqual(c[0].id.number, 17);
+      assert.strictEqual(c[0].value.id.number, 17);
       const a = await store.index("byIdNumber", {
         mode: "range",
         lower_value: 16,
@@ -930,8 +938,8 @@ const stopwatch = async (label: string, fn: any) => {
         lower_inclusive: true,
       });
       assert.strictEqual(a.length, 2);
-      assert.isDefined(a.find((i) => i.id.number == 16));
-      assert.isDefined(a.find((i) => i.id.number == 17));
+      assert.isDefined(a.find((i) => i.value.id.number == 16));
+      assert.isDefined(a.find((i) => i.value.id.number == 17));
       const b = await store.index("byIdNumber", {
         mode: "range",
         lower_value: 16,
@@ -939,8 +947,8 @@ const stopwatch = async (label: string, fn: any) => {
         upper_inclusive: true,
       });
       assert.strictEqual(b.length, 2);
-      assert.isDefined(b.find((i) => i.id.number == 17));
-      assert.isDefined(b.find((i) => i.id.number == 20));
+      assert.isDefined(b.find((i) => i.value.id.number == 17));
+      assert.isDefined(b.find((i) => i.value.id.number == 20));
 
       store.close();
     }
@@ -981,9 +989,9 @@ const stopwatch = async (label: string, fn: any) => {
           remove_index("bySlug");
 
           (await store.values()).map((entry) => {
-            assert.isUndefined(entry.vote);
+            assert.isUndefined(entry.value.vote);
 
-            store.update(entry.id.number, { vote: 0 });
+            store.update(entry.value.id.number, { value: { vote: 0 } });
           });
         },
       });
@@ -994,18 +1002,24 @@ const stopwatch = async (label: string, fn: any) => {
       assert.isUndefined(indexes.find((index) => index == "bySlug"));
 
       (await store.values()).map((entry) => {
-        assert.strictEqual(entry.vote, 0);
+        assert.strictEqual(entry.value.vote, 0);
       });
 
       await store.update(15, {
-        vote: 10,
+        value: {
+          vote: 10,
+        },
       });
       await store.update(17, {
-        vote: 8,
+        value: {
+          vote: 8,
+        },
       });
-      await store.update(20, { vote: 2 });
+      await store.update(20, { value: { vote: 2 } });
       await store.update(16, {
-        vote: 5,
+        value: {
+          vote: 5,
+        },
       });
 
       await store.delete();
@@ -1107,35 +1121,35 @@ const stopwatch = async (label: string, fn: any) => {
       page = await store.page(1);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 0);
-      assert.strictEqual(page.results[1].i, 1);
-      assert.strictEqual(page.results[2].i, 2);
+      assert.strictEqual(page.results[0].value.i, 0);
+      assert.strictEqual(page.results[1].value.i, 1);
+      assert.strictEqual(page.results[2].value.i, 2);
 
       page = await store.page(2);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 3);
-      assert.strictEqual(page.results[1].i, 4);
-      assert.strictEqual(page.results[2].i, 5);
+      assert.strictEqual(page.results[0].value.i, 3);
+      assert.strictEqual(page.results[1].value.i, 4);
+      assert.strictEqual(page.results[2].value.i, 5);
 
       page = await store.page(3);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 6);
-      assert.strictEqual(page.results[1].i, 7);
-      assert.strictEqual(page.results[2].i, 8);
+      assert.strictEqual(page.results[0].value.i, 6);
+      assert.strictEqual(page.results[1].value.i, 7);
+      assert.strictEqual(page.results[2].value.i, 8);
 
       page = await store.page(4);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 9);
-      assert.strictEqual(page.results[1].i, 10);
-      assert.strictEqual(page.results[2].i, 11);
+      assert.strictEqual(page.results[0].value.i, 9);
+      assert.strictEqual(page.results[1].value.i, 10);
+      assert.strictEqual(page.results[2].value.i, 11);
 
       page = await store.page(5);
       assert.isFalse(page.has_next);
       assert.strictEqual(page.results.length, 1);
-      assert.strictEqual(page.results[0].i, 12);
+      assert.strictEqual(page.results[0].value.i, 12);
 
       page = await store.page(6);
       assert.isFalse(page.has_next);
@@ -1148,43 +1162,43 @@ const stopwatch = async (label: string, fn: any) => {
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 0);
-      assert.strictEqual(page.results[1].i, 1);
-      assert.strictEqual(page.results[2].i, 2);
+      assert.strictEqual(page.results[0].value.i, 0);
+      assert.strictEqual(page.results[1].value.i, 1);
+      assert.strictEqual(page.results[2].value.i, 2);
 
       page = await store.index("byI", {
         page: 2,
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 3);
-      assert.strictEqual(page.results[1].i, 4);
-      assert.strictEqual(page.results[2].i, 5);
+      assert.strictEqual(page.results[0].value.i, 3);
+      assert.strictEqual(page.results[1].value.i, 4);
+      assert.strictEqual(page.results[2].value.i, 5);
 
       page = await store.index("byI", {
         page: 3,
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 6);
-      assert.strictEqual(page.results[1].i, 7);
-      assert.strictEqual(page.results[2].i, 8);
+      assert.strictEqual(page.results[0].value.i, 6);
+      assert.strictEqual(page.results[1].value.i, 7);
+      assert.strictEqual(page.results[2].value.i, 8);
 
       page = await store.index("byI", {
         page: 4,
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 9);
-      assert.strictEqual(page.results[1].i, 10);
-      assert.strictEqual(page.results[2].i, 11);
+      assert.strictEqual(page.results[0].value.i, 9);
+      assert.strictEqual(page.results[1].value.i, 10);
+      assert.strictEqual(page.results[2].value.i, 11);
 
       page = await store.index("byI", {
         page: 5,
       });
       assert.isFalse(page.has_next);
       assert.strictEqual(page.results.length, 1);
-      assert.strictEqual(page.results[0].i, 12);
+      assert.strictEqual(page.results[0].value.i, 12);
 
       page = await store.index("byI", {
         page: 6,
@@ -1202,9 +1216,9 @@ const stopwatch = async (label: string, fn: any) => {
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 2);
-      assert.strictEqual(page.results[1].i, 3);
-      assert.strictEqual(page.results[2].i, 4);
+      assert.strictEqual(page.results[0].value.i, 2);
+      assert.strictEqual(page.results[1].value.i, 3);
+      assert.strictEqual(page.results[2].value.i, 4);
       page = await store.index("byI", {
         page: 2,
         mode: "above",
@@ -1213,9 +1227,9 @@ const stopwatch = async (label: string, fn: any) => {
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 5);
-      assert.strictEqual(page.results[1].i, 6);
-      assert.strictEqual(page.results[2].i, 7);
+      assert.strictEqual(page.results[0].value.i, 5);
+      assert.strictEqual(page.results[1].value.i, 6);
+      assert.strictEqual(page.results[2].value.i, 7);
       page = await store.index("byI", {
         page: 3,
         mode: "above",
@@ -1224,9 +1238,9 @@ const stopwatch = async (label: string, fn: any) => {
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(page.results[0].i, 8);
-      assert.strictEqual(page.results[1].i, 9);
-      assert.strictEqual(page.results[2].i, 10);
+      assert.strictEqual(page.results[0].value.i, 8);
+      assert.strictEqual(page.results[1].value.i, 9);
+      assert.strictEqual(page.results[2].value.i, 10);
       page = await store.index("byI", {
         page: 4,
         mode: "above",
@@ -1235,8 +1249,8 @@ const stopwatch = async (label: string, fn: any) => {
       });
       assert.isFalse(page.has_next);
       assert.strictEqual(page.results.length, 2);
-      assert.strictEqual(page.results[0].i, 11);
-      assert.strictEqual(page.results[1].i, 12);
+      assert.strictEqual(page.results[0].value.i, 11);
+      assert.strictEqual(page.results[1].value.i, 12);
       page = await store.index("byI", {
         page: 5,
         mode: "above",
@@ -1251,7 +1265,7 @@ const stopwatch = async (label: string, fn: any) => {
   });
 
   await stopwatch("autoincrement (async)", async () => {
-    const store = new ustore.Async<string>();
+    let store = new ustore.Async<string>();
     await store.init("store", {
       autoincrement: true,
     });
