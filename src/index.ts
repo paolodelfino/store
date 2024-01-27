@@ -254,8 +254,8 @@ export namespace ustore {
       let i = 0;
       while (i < this._page_sz && cursor) {
         results.push({
+          key: cursor.primaryKey as Key,
           value: cursor.value.value,
-          key: cursor.key as Key,
         });
 
         ++i;
@@ -404,7 +404,7 @@ export namespace ustore {
       let cursor = await index.openCursor(query);
       while (cursor) {
         values.push({
-          key: cursor.key as Key,
+          key: cursor.primaryKey as Key,
           value: cursor.value.value,
           timestamp: cursor.value.timestamp,
         });
@@ -637,12 +637,21 @@ export namespace ustore {
     }
 
     async values() {
-      return (await (await this._table()).index("byTimestamp").getAll()).map(
-        (entry) => ({
-          key: entry.key,
-          value: entry.value,
-        })
-      ) as Key_Value_Pair<Value>[];
+      let results: Key_Value_Pair<Value>[] = [];
+
+      let cursor = await (await this._table())
+        .index("byTimestamp")
+        .openCursor();
+      while (cursor) {
+        results.push({
+          key: cursor.primaryKey as Key,
+          value: cursor.value.value,
+        });
+
+        cursor = await cursor.continue();
+      }
+
+      return results;
     }
 
     private async _table<T extends "readonly" | "readwrite" = "readonly">(
