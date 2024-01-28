@@ -238,11 +238,11 @@ export namespace ustore {
     /**
      * @param number Starts from 1
      */
-    async page(number: number) {
+    async page(number: number, reverse?: boolean) {
       const table = (await this._table()).index("byTimestamp");
 
       let cursor: IDBPCursorWithValue | null | undefined =
-        await table.openCursor();
+        await table.openCursor(undefined, reverse ? "prev" : undefined);
 
       const skip = (number - 1) * this._page_sz;
       if (skip > 0) {
@@ -281,6 +281,12 @@ export namespace ustore {
     async index(name: Index<Indexes>["name"]): Promise<Key_Value_Pair<Value>[]>;
     async index(
       name: Index<Indexes>["name"],
+      options: {
+        reverse: boolean;
+      }
+    ): Promise<Key_Value_Pair<Value>[]>;
+    async index(
+      name: Index<Indexes>["name"],
       options:
         | {
             mode: "only";
@@ -303,6 +309,34 @@ export namespace ustore {
             lower_inclusive?: boolean;
             upper_inclusive?: boolean;
           }
+    ): Promise<Key_Value_Pair<Value>[]>;
+    async index(
+      name: Index<Indexes>["name"],
+      options: {
+        reverse: boolean;
+      } & (
+        | {
+            mode: "only";
+            value: any;
+          }
+        | {
+            mode: "above";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "below";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "range";
+            lower_value: any;
+            upper_value: any;
+            lower_inclusive?: boolean;
+            upper_inclusive?: boolean;
+          }
+      )
     ): Promise<Key_Value_Pair<Value>[]>;
 
     /**
@@ -341,13 +375,53 @@ export namespace ustore {
      */
     async index(
       name: Index<Indexes>["name"],
+      options: {
+        page: number;
+        reverse: boolean;
+      } & (
+        | {
+            mode: "only";
+            value: any;
+          }
+        | {
+            mode: "above";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "below";
+            value: any;
+            inclusive?: boolean;
+          }
+        | {
+            mode: "range";
+            lower_value: any;
+            upper_value: any;
+            lower_inclusive?: boolean;
+            upper_inclusive?: boolean;
+          }
+      )
+    ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
+    /**
+     * @param page Starts from 1
+     */
+    async index(
+      name: Index<Indexes>["name"],
       options: { page: number }
+    ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
+    /**
+     * @param page Starts from 1
+     */
+    async index(
+      name: Index<Indexes>["name"],
+      options: { page: number; reverse: boolean }
     ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
 
     async index(
       name: Index<Indexes>["name"],
       options?: {
         page?: number;
+        reverse?: boolean;
       } & (
         | {
             mode?: "only";
@@ -412,7 +486,11 @@ export namespace ustore {
         cursor = await cursor.continue();
       }
 
-      values.sort((a, b) => a.timestamp - b.timestamp);
+      if (options?.reverse) {
+        values.sort((a, b) => b.timestamp - a.timestamp);
+      } else {
+        values.sort((a, b) => a.timestamp - b.timestamp);
+      }
 
       if (!options?.page) {
         return values.map((entry) => ({
@@ -636,12 +714,12 @@ export namespace ustore {
       return await (await this._table()).count();
     }
 
-    async values() {
+    async values(reverse?: boolean) {
       let results: Key_Value_Pair<Value>[] = [];
 
       let cursor = await (await this._table())
         .index("byTimestamp")
-        .openCursor();
+        .openCursor(undefined, reverse ? "prev" : undefined);
       while (cursor) {
         results.push({
           key: cursor.primaryKey as Key,

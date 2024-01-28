@@ -777,47 +777,73 @@ const stopwatch = async (label: string, fn: any) => {
     }
   });
 
-  await stopwatch("orderby timestamp (async)", async () => {
+  await stopwatch("orders (async)", async () => {
     {
-      const is: string[] = [];
-
-      for (let i = 0; i < 100; ++i) {
-        is.push(i.toString());
-        await mylist.set(
+      const store = new ustore.Async<
+        {
+          id: number;
+          slug: string;
+        },
+        "bySlug"
+      >();
+      await store.init("store", {
+        autoincrement: true,
+        indexes: [
           {
-            id: i,
-            slug: i.toString(),
+            name: "bySlug",
+            path: "slug",
+            unique: true,
           },
-          i.toString()
-        );
-        await time(1);
-      }
-
-      const is_store = await mylist.values();
-
-      for (let i = 0; i < is.length; ++i) {
-        assert.strictEqual(is[i], is_store[i].value.slug);
-      }
-
-      await mylist.clear();
-    }
-
-    {
-      const is: string[] = [];
+        ],
+      });
 
       for (let i = 0; i < 100; ++i) {
-        is.push(i.toString());
-        await history.set(i.toString(), i.toString());
+        await store.set({
+          id: i,
+          slug: `${i}`,
+        });
         await time(1);
       }
 
-      const is_store = await history.values();
+      {
+        const values = await store.values();
+        for (let i = 0; i < 100; ++i) {
+          assert.strictEqual(values[i].value.id, i);
+        }
 
-      for (let i = 0; i < is.length; ++i) {
-        assert.strictEqual(is[i], is_store[i].value);
+        const reverse = await store.values(true);
+        for (let i = 0; i < 100; ++i) {
+          assert.strictEqual(reverse[i].value.id, 99 - i);
+        }
       }
 
-      await history.clear();
+      {
+        const index = await store.index("bySlug");
+        for (let i = 0; i < 100; ++i) {
+          assert.strictEqual(index[i].value.id, i);
+        }
+
+        const reverse = await store.index("bySlug", { reverse: true });
+        for (let i = 0; i < 100; ++i) {
+          assert.strictEqual(reverse[i].value.id, 99 - i);
+        }
+      }
+
+      {
+        const page = await store.page(1);
+        for (let i = 0; i < 3; ++i) {
+          assert.strictEqual(page.results[i].value.id, i);
+        }
+        assert.isTrue(page.has_next);
+
+        const reverse = await store.page(1, true);
+        for (let i = 0; i < 3; ++i) {
+          assert.strictEqual(reverse.results[i].value.id, 99 - i);
+        }
+        assert.isTrue(reverse.has_next);
+      }
+
+      await store.delete();
     }
   });
 
