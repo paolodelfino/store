@@ -11,6 +11,26 @@ const stopwatch = async (label: string, fn: any) => {
   console.timeEnd(label);
 };
 
+globalThis["listeners"] = [];
+
+class BroadcastChannel {
+  constructor(name: string) {}
+
+  postMessage(message: any) {
+    for (const cb of globalThis["listeners"]) {
+      cb({ data: message });
+    }
+  }
+
+  addEventListener(type: "message", listener: (ev: { data: any }) => any) {
+    globalThis["listeners"].push(listener);
+  }
+
+  close() {}
+}
+// @ts-ignore
+globalThis.BroadcastChannel = BroadcastChannel;
+
 {
   const mylist = new ustore.Sync<{ slug: string; id: number }>("mylist", {
     kind: "local",
@@ -1396,6 +1416,69 @@ const stopwatch = async (label: string, fn: any) => {
     assert.strictEqual((await store.get(345))?.slug, "enola");
     assert.strictEqual((await store.get(521))?.slug, "rick");
 
+    await store.delete();
+  });
+
+  await stopwatch("last_modified (async)", async () => {
+    const store = new ustore.Async<string>();
+    await store.init("store", {
+      autoincrement: true,
+    });
+    const parallel_store = new ustore.Async();
+    await parallel_store.init("store");
+
+    assert.strictEqual(store.last_modified, -1);
+    assert.strictEqual(parallel_store.last_modified, -1);
+
+    let before: number;
+    let key: ustore.Key;
+
+    before = Date.now();
+    key = await store.set("4", undefined, { expiry: Date.now() + 300 });
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    before = Date.now();
+    await store.update(key, { value: "5" });
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    await time(300);
+    before = Date.now();
+    await store.has("");
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    key = await store.set("4");
+    before = Date.now();
+    await store.consume(key);
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    key = await store.set("4");
+    before = Date.now();
+    await store.rm(key);
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    before = Date.now();
+    await store.clear();
+    assert.isAtLeast(store.last_modified, before);
+    assert.isAtMost(store.last_modified, Date.now());
+    assert.isAtLeast(parallel_store.last_modified, before);
+    assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    parallel_store.close();
     await store.delete();
   });
 }

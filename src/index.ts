@@ -145,8 +145,10 @@ export namespace ustore {
     private _middlewares: Middlewares<Value, Indexes>;
     private _consume_default?: Value;
     private _page_sz!: number;
+    private _bc!: BroadcastChannel;
 
     identifier!: Param<typeof this.init, 0>;
+    last_modified: number = -1;
 
     /**
      * @param page_sz Defaults to 10
@@ -176,6 +178,11 @@ export namespace ustore {
       this._middlewares = options?.middlewares;
       this._consume_default = options?.consume_default;
       this._page_sz = options?.page_sz ?? 10;
+
+      this._bc = new BroadcastChannel(`pustore-${this.identifier}`);
+      this._bc.addEventListener("message", (ev) => {
+        this.last_modified = ev.data;
+      });
 
       let migrating: Promise<void> | undefined;
       const temp_db = (table: any) => {
@@ -270,6 +277,7 @@ export namespace ustore {
 
     close() {
       this._db.close();
+      this._bc.close();
     }
 
     indexes(): Indexes[] {
@@ -571,6 +579,8 @@ export namespace ustore {
             ? value
             : cursor.value.value,
       });
+
+      this._bc.postMessage(Date.now());
     }
 
     async get_some(keys: Key[]) {
@@ -614,6 +624,8 @@ export namespace ustore {
           await cursor.delete();
         }
 
+        this._bc.postMessage(Date.now());
+
         return value;
       }
     }
@@ -631,7 +643,7 @@ export namespace ustore {
       key?: Key,
       options: Async_Entry<Value>["options"] = {}
     ) {
-      return (await (
+      const result = (await (
         await this._table("readwrite")
       ).put(
         {
@@ -641,6 +653,10 @@ export namespace ustore {
         },
         key
       )) as Key;
+
+      this._bc.postMessage(Date.now());
+
+      return result;
     }
 
     async debug() {
@@ -669,11 +685,21 @@ export namespace ustore {
     }
 
     async rm(key: Key) {
-      return (await (await this._table("readwrite")).openCursor(key))?.delete();
+      const cursor = await (await this._table("readwrite")).openCursor(key);
+      if (cursor) {
+        await cursor.delete();
+
+        this._bc.postMessage(Date.now());
+      }
     }
 
     async clear() {
-      return (await this._table("readwrite")).clear();
+      const table = await this._table("readwrite");
+      if ((await table.count()) > 0) {
+        await table.clear();
+
+        this._bc.postMessage(Date.now());
+      }
     }
 
     delete() {
@@ -746,15 +772,24 @@ export namespace ustore {
       const table = this._db.transaction(this.identifier, "readwrite", {
         durability: "relaxed",
       }).store;
-      const by_expiry = table.index("byExpiry");
 
-      let cursor = await by_expiry.openCursor(
-        IDBKeyRange.upperBound(Date.now())
-      );
+      let cursor = await table
+        .index("byExpiry")
+        .openCursor(IDBKeyRange.upperBound(Date.now()));
+
+      let dispatch_modified = false;
+      if (cursor) {
+        dispatch_modified = true;
+      }
+
       while (cursor) {
         await cursor.delete();
 
         cursor = await cursor.continue();
+      }
+
+      if (dispatch_modified) {
+        this._bc.postMessage(Date.now());
       }
     }
   }
@@ -779,7 +814,7 @@ export namespace ustore {
     expiry: number;
   }
 
-  export interface Entry<T> {
+  interface Entry<T> {
     value: T;
     options?: Partial<Options>;
   }
@@ -800,7 +835,7 @@ export namespace ustore {
     multi_entry?: boolean;
   }
 
-  type Key = string | number;
+  export type Key = string | number;
 
   interface Async_Entry<T> {
     value: T;
