@@ -144,10 +144,10 @@ export namespace ustore {
     private _db!: IDBPDatabase;
     private _middlewares: Middlewares<Value, Indexes>;
     private _consume_default?: Value;
-    private _page_sz!: number;
     private _bc!: BroadcastChannel;
 
     identifier!: Param<typeof this.init, 0>;
+    page_sz = 10;
     last_modified: number = -1;
 
     /**
@@ -177,7 +177,7 @@ export namespace ustore {
       this.identifier = identifier;
       this._middlewares = options?.middlewares;
       this._consume_default = options?.consume_default;
-      this._page_sz = options?.page_sz ?? 10;
+      this.page_sz = options?.page_sz ?? this.page_sz;
 
       this._bc = new BroadcastChannel(`pustore-${this.identifier}`);
       this._bc.addEventListener("message", (ev) => {
@@ -251,14 +251,14 @@ export namespace ustore {
       let cursor: IDBPCursorWithValue | null | undefined =
         await table.openCursor(undefined, reverse ? "prev" : undefined);
 
-      const skip = (number - 1) * this._page_sz;
+      const skip = (number - 1) * this.page_sz;
       if (skip > 0) {
         cursor = await cursor?.advance(skip);
       }
 
       const results: Key_Value_Pair<Value>[] = [];
 
-      const page_sz = sz || this._page_sz;
+      const page_sz = sz || this.page_sz;
       let i = 0;
       while (i < page_sz && cursor) {
         results.push({
@@ -513,7 +513,7 @@ export namespace ustore {
 
       const results: Key_Value_Pair<Value>[] = [];
 
-      const page_sz = options.page_sz || this._page_sz;
+      const page_sz = options.page_sz || this.page_sz;
       const end = options.page * page_sz;
       for (let i = (options.page - 1) * page_sz; i < end; i++) {
         if (values[i]) {
