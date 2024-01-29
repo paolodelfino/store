@@ -1455,6 +1455,8 @@ globalThis.BroadcastChannel = BroadcastChannel;
     assert.isAtLeast(parallel_store.last_modified, before);
     assert.isAtMost(parallel_store.last_modified, Date.now());
 
+    await time(10);
+
     key = await store.set("4");
     before = Date.now();
     await store.consume(key);
@@ -1462,6 +1464,8 @@ globalThis.BroadcastChannel = BroadcastChannel;
     assert.isAtMost(store.last_modified, Date.now());
     assert.isAtLeast(parallel_store.last_modified, before);
     assert.isAtMost(parallel_store.last_modified, Date.now());
+
+    await time(10);
 
     key = await store.set("4");
     before = Date.now();
@@ -1471,6 +1475,9 @@ globalThis.BroadcastChannel = BroadcastChannel;
     assert.isAtLeast(parallel_store.last_modified, before);
     assert.isAtMost(parallel_store.last_modified, Date.now());
 
+    await time(10);
+
+    await store.set("4");
     before = Date.now();
     await store.clear();
     assert.isAtLeast(store.last_modified, before);

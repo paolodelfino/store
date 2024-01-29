@@ -709,7 +709,7 @@ export namespace ustore {
 
     async export() {
       const table = await this._table();
-      const set = new Map<Key, Entry<Value>>();
+      const set = new Map<Key, Async_Entry<Value>>();
 
       let cursor = await table.openCursor();
       while (cursor) {
@@ -837,7 +837,7 @@ export namespace ustore {
 
   export type Key = string | number;
 
-  interface Async_Entry<T> {
+  export interface Async_Entry<T> {
     value: T;
     options: Partial<Options>;
     timestamp: number;
