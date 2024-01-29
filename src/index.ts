@@ -808,7 +808,7 @@ export namespace ustore {
     timestamp: number;
   }
 
-  interface Key_Value_Pair<T> {
+  export interface Key_Value_Pair<T> {
     value: T;
     key: Key;
   }
