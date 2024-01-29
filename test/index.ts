@@ -1200,6 +1200,10 @@ globalThis.BroadcastChannel = BroadcastChannel;
       page = await store.page(1);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(
+        (await store.page(1, undefined, 10)).results.length,
+        10
+      );
       assert.strictEqual(page.results[0].value.i, 0);
       assert.strictEqual(page.results[0].key, "0");
       assert.strictEqual(page.results[1].value.i, 1);
@@ -1254,6 +1258,15 @@ globalThis.BroadcastChannel = BroadcastChannel;
       });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(
+        (
+          await store.index("byI", {
+            page: 1,
+            page_sz: 10,
+          })
+        ).results.length,
+        10
+      );
       assert.strictEqual(page.results[0].value.i, 0);
       assert.strictEqual(page.results[0].key, "0");
       assert.strictEqual(page.results[1].value.i, 1);
