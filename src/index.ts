@@ -245,13 +245,18 @@ export namespace ustore {
     /**
      * @param number Starts from 1
      */
-    async page(number: number, reverse?: boolean, sz?: number) {
+    async page(
+      number: number,
+      reverse?: boolean,
+      sz?: number,
+      offset?: number
+    ) {
       const table = (await this._table()).index("byTimestamp");
 
       let cursor: IDBPCursorWithValue | null | undefined =
         await table.openCursor(undefined, reverse ? "prev" : undefined);
 
-      const skip = (number - 1) * this.page_sz;
+      const skip = (number - 1) * this.page_sz + (offset ?? 0);
       if (skip > 0) {
         cursor = await cursor?.advance(skip);
       }
@@ -356,6 +361,7 @@ export namespace ustore {
       options: {
         page: number;
         page_sz?: number;
+        offset?: number;
       } & (
         | {
             mode: "only";
@@ -388,6 +394,7 @@ export namespace ustore {
       options: {
         page: number;
         page_sz?: number;
+        offset?: number;
         reverse: boolean;
       } & (
         | {
@@ -418,14 +425,19 @@ export namespace ustore {
      */
     async index(
       name: Index<Indexes>["name"],
-      options: { page: number; page_sz?: number }
+      options: { page: number; page_sz?: number; offset?: number }
     ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
     /**
      * @param page Starts from 1
      */
     async index(
       name: Index<Indexes>["name"],
-      options: { page: number; page_sz?: number; reverse: boolean }
+      options: {
+        page: number;
+        page_sz?: number;
+        reverse: boolean;
+        offset?: number;
+      }
     ): Promise<{ results: Key_Value_Pair<Value>[]; has_next: boolean }>;
 
     async index(
@@ -433,6 +445,7 @@ export namespace ustore {
       options?: {
         page?: number;
         page_sz?: number;
+        offset?: number;
         reverse?: boolean;
       } & (
         | {
@@ -514,8 +527,12 @@ export namespace ustore {
       const results: Key_Value_Pair<Value>[] = [];
 
       const page_sz = options.page_sz || this.page_sz;
-      const end = options.page * page_sz;
-      for (let i = (options.page - 1) * page_sz; i < end; i++) {
+      const end = options.page * page_sz + (options.offset ?? 0);
+      for (
+        let i = (options.page - 1) * page_sz + (options.offset ?? 0);
+        i < end;
+        i++
+      ) {
         if (values[i]) {
           results.push({
             value: values[i].value,

@@ -1211,6 +1211,16 @@ globalThis.BroadcastChannel = BroadcastChannel;
       assert.strictEqual(page.results[2].value.i, 2);
       assert.strictEqual(page.results[2].key, "2");
 
+      page = await store.page(1, undefined, undefined, 2);
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].value.i, 2);
+      assert.strictEqual(page.results[0].key, "2");
+      assert.strictEqual(page.results[1].value.i, 3);
+      assert.strictEqual(page.results[1].key, "3");
+      assert.strictEqual(page.results[2].value.i, 4);
+      assert.strictEqual(page.results[2].key, "4");
+
       page = await store.page(2);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
@@ -1273,6 +1283,19 @@ globalThis.BroadcastChannel = BroadcastChannel;
       assert.strictEqual(page.results[1].key, "1");
       assert.strictEqual(page.results[2].value.i, 2);
       assert.strictEqual(page.results[2].key, "2");
+
+      page = await store.index("byI", {
+        page: 1,
+        offset: 2,
+      });
+      assert.isTrue(page.has_next);
+      assert.strictEqual(page.results.length, 3);
+      assert.strictEqual(page.results[0].value.i, 2);
+      assert.strictEqual(page.results[0].key, "2");
+      assert.strictEqual(page.results[1].value.i, 3);
+      assert.strictEqual(page.results[1].key, "3");
+      assert.strictEqual(page.results[2].value.i, 4);
+      assert.strictEqual(page.results[2].key, "4");
 
       page = await store.index("byI", {
         page: 2,
