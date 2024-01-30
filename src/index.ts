@@ -536,15 +536,13 @@ export namespace ustore {
       const end = options.page * page_sz + (options.offset ?? 0);
       for (
         let i = (options.page - 1) * page_sz + (options.offset ?? 0);
-        i < end;
+        i < end && i < values.length;
         i++
       ) {
-        if (values[i]) {
-          results.push({
-            value: values[i].value,
-            key: values[i].key,
-          });
-        }
+        results.push({
+          value: values[i].value,
+          key: values[i].key,
+        });
       }
 
       return {
