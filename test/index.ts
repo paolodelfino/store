@@ -856,7 +856,9 @@ globalThis.BroadcastChannel = BroadcastChannel;
         }
         assert.isTrue(page.has_next);
 
-        const reverse = await store.page(1, true);
+        const reverse = await store.page(1, {
+          reverse: true,
+        });
         for (let i = 0; i < 3; ++i) {
           assert.strictEqual(reverse.results[i].value.id, 99 - i);
         }
@@ -1200,10 +1202,7 @@ globalThis.BroadcastChannel = BroadcastChannel;
       page = await store.page(1);
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
-      assert.strictEqual(
-        (await store.page(1, undefined, 10)).results.length,
-        10
-      );
+      assert.strictEqual((await store.page(1, { sz: 10 })).results.length, 10);
       assert.strictEqual(page.results[0].value.i, 0);
       assert.strictEqual(page.results[0].key, "0");
       assert.strictEqual(page.results[1].value.i, 1);
@@ -1211,7 +1210,9 @@ globalThis.BroadcastChannel = BroadcastChannel;
       assert.strictEqual(page.results[2].value.i, 2);
       assert.strictEqual(page.results[2].key, "2");
 
-      page = await store.page(1, undefined, undefined, 2);
+      page = await store.page(1, {
+        offset: 2,
+      });
       assert.isTrue(page.has_next);
       assert.strictEqual(page.results.length, 3);
       assert.strictEqual(page.results[0].value.i, 2);

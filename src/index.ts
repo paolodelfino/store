@@ -247,23 +247,29 @@ export namespace ustore {
      */
     async page(
       number: number,
-      reverse?: boolean,
-      sz?: number,
-      offset?: number
+      options?: {
+        reverse?: boolean;
+        sz?: number;
+        offset?: number;
+      }
     ) {
       const table = (await this._table()).index("byTimestamp");
 
       let cursor: IDBPCursorWithValue | null | undefined =
-        await table.openCursor(undefined, reverse ? "prev" : undefined);
+        await table.openCursor(
+          undefined,
+          options?.reverse ? "prev" : undefined
+        );
 
-      const skip = (number - 1) * this.page_sz + (offset ?? 0);
+      const page_sz = options?.sz ?? this.page_sz;
+
+      const skip = (number - 1) * page_sz + (options?.offset ?? 0);
       if (skip > 0) {
         cursor = await cursor?.advance(skip);
       }
 
       const results: Key_Value_Pair<Value>[] = [];
 
-      const page_sz = sz || this.page_sz;
       let i = 0;
       while (i < page_sz && cursor) {
         results.push({
