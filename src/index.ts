@@ -141,10 +141,10 @@ export namespace ustore {
     Value extends object | string | any[],
     Indexes extends string = "There is no index available"
   > {
-    private _db!: IDBPDatabase;
-    private _middlewares: Middlewares<Value, Indexes>;
-    private _consume_default?: Value;
-    private _bc!: BroadcastChannel;
+    protected _db!: IDBPDatabase;
+    protected _middlewares: Middlewares<Value, Indexes>;
+    protected _consume_default?: Value;
+    protected _bc!: BroadcastChannel;
 
     identifier!: Param<typeof this.init, 0>;
     page_sz = 10;
@@ -784,7 +784,7 @@ export namespace ustore {
       return results;
     }
 
-    private async _table<T extends "readonly" | "readwrite" = "readonly">(
+    protected async _table<T extends "readonly" | "readwrite" = "readonly">(
       mode?: T
     ) {
       await this._rm_expired();
@@ -820,13 +820,13 @@ export namespace ustore {
     }
   }
 
-  type Param<
+  export type Param<
     T extends (...args: any) => any,
     U extends number,
     V extends keyof Parameters<T>[U] | undefined = undefined
   > = V extends keyof Parameters<T>[U] ? Parameters<T>[U][V] : Parameters<T>[U];
 
-  type Constr<
+  export type Constr<
     T extends abstract new (...args: any) => any,
     U extends number,
     V extends keyof ConstructorParameters<T>[U] | undefined = undefined
@@ -845,7 +845,7 @@ export namespace ustore {
     options?: Partial<Options>;
   }
 
-  type Middlewares<
+  export type Middlewares<
     Value extends object | string | any[],
     Indexes extends string
   > =
@@ -854,7 +854,7 @@ export namespace ustore {
       }>
     | undefined;
 
-  interface Index<U> {
+  export interface Index<U> {
     name: U;
     path: string;
     unique?: boolean;
