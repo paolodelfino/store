@@ -489,6 +489,52 @@ globalThis.BroadcastChannel = BroadcastChannel;
 
       await history.clear();
     }
+
+    {
+      const store = new ustore.Async<{
+        a: {
+          b: number;
+          c: string;
+          d: {
+            e: number;
+            f: string;
+          };
+        };
+        g: number;
+      }>();
+      await store.init("store", {
+        autoincrement: true,
+      });
+
+      const key = await store.set({
+        a: {
+          b: 1,
+          c: "s",
+          d: { e: 1, f: "s" },
+        },
+        g: 1,
+      });
+
+      await store.update(key, {
+        value: {
+          a: {
+            c: "s-new",
+            d: { e: 4 },
+          },
+        },
+      });
+
+      const entry = (await store.get(key))!;
+      assert.isDefined(entry);
+
+      assert.strictEqual(entry.a.b, 1);
+      assert.strictEqual(entry.a.c, "s-new");
+      assert.strictEqual(entry.a.d.e, 4);
+      assert.strictEqual(entry.a.d.f, "s");
+      assert.strictEqual(entry.g, 1);
+
+      await store.delete();
+    }
   });
 
   await stopwatch("middleware get (async)", async () => {

@@ -1,5 +1,5 @@
 import { IDBPCursorWithValue, IDBPDatabase, deleteDB, openDB } from "idb";
-import { Memory_Storage } from "./utils";
+import { Memory_Storage, obj_merge } from "./utils";
 
 export namespace ustore {
   export class Sync<T extends object> {
@@ -554,15 +554,15 @@ export namespace ustore {
     async update(
       key: Key,
       data: (old: Async_Entry<Value>) => Promise<{
-        value?: Partial<Value>;
-        options?: Partial<Options>;
+        value?: EveryOpt<Value>;
+        options?: EveryOpt<Options>;
       }>
     ): Promise<void>;
     async update(
       key: Key,
       data: {
-        value?: Partial<Value>;
-        options?: Partial<Options>;
+        value?: EveryOpt<Value>;
+        options?: EveryOpt<Options>;
       }
     ): Promise<void>;
 
@@ -570,12 +570,12 @@ export namespace ustore {
       key: Key,
       data:
         | ((old: Async_Entry<Value>) => Promise<{
-            value?: Partial<Value>;
-            options?: Partial<Options>;
+            value?: EveryOpt<Value>;
+            options?: EveryOpt<Options>;
           }>)
         | {
-            value?: Partial<Value>;
-            options?: Partial<Options>;
+            value?: EveryOpt<Value>;
+            options?: EveryOpt<Options>;
           }
     ) {
       const cursor = await (await this._table("readwrite")).openCursor(key);
@@ -595,12 +595,12 @@ export namespace ustore {
           : data;
 
       await cursor.update({
-        options: { ...cursor.value.options, ...options },
+        options: obj_merge(cursor.value.options, options),
         value:
           typeof value == "object"
             ? Array.isArray(value)
               ? [...cursor.value.value, ...value]
-              : { ...cursor.value.value, ...value }
+              : obj_merge(cursor.value.value, value)
             : value
             ? value
             : cursor.value.value,
@@ -873,4 +873,10 @@ export namespace ustore {
     value: T;
     key: Key;
   }
+
+  export type EveryOpt<T> = T extends object
+    ? {
+        [P in keyof T]?: EveryOpt<T[P]>;
+      }
+    : T | undefined;
 }

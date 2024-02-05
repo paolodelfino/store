@@ -22,3 +22,23 @@ export class Memory_Storage implements Storage {
     this._data = {};
   }
 }
+
+export function obj_merge<T extends object, U extends EveryOpt<T>>(a: T, b: U) {
+  for (const key in b) {
+    if (typeof b[key] == "object") {
+      // @ts-ignore
+      obj_merge(a[key], b[key]);
+    } else {
+      // @ts-ignore
+      a[key] = b[key];
+    }
+  }
+
+  return a;
+}
+
+type EveryOpt<T> = T extends object
+  ? {
+      [P in keyof T]?: EveryOpt<T[P]>;
+    }
+  : T | undefined;
