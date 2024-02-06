@@ -1,6 +1,6 @@
 {
   "name": "pustore",
-  "version": "13.2.2",
+  "version": "13.2.3",
   "description": "",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
