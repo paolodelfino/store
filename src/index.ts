@@ -554,15 +554,15 @@ export namespace ustore {
     async update(
       key: Key,
       data: (old: Async_Entry<Value>) => Promise<{
-        value?: EveryOpt<Value>;
-        options?: EveryOpt<Options>;
+        value?: EveryOpt<Value> | Value;
+        options?: EveryOpt<Options> | Options;
       }>
     ): Promise<void>;
     async update(
       key: Key,
       data: {
-        value?: EveryOpt<Value>;
-        options?: EveryOpt<Options>;
+        value?: EveryOpt<Value> | Value;
+        options?: EveryOpt<Options> | Options;
       }
     ): Promise<void>;
 
@@ -570,12 +570,12 @@ export namespace ustore {
       key: Key,
       data:
         | ((old: Async_Entry<Value>) => Promise<{
-            value?: EveryOpt<Value>;
-            options?: EveryOpt<Options>;
+            value?: EveryOpt<Value> | Value;
+            options?: EveryOpt<Options> | Options;
           }>)
         | {
-            value?: EveryOpt<Value>;
-            options?: EveryOpt<Options>;
+            value?: EveryOpt<Value> | Value;
+            options?: EveryOpt<Options> | Options;
           }
     ) {
       const cursor = await (await this._table("readwrite")).openCursor(key);
