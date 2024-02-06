@@ -596,14 +596,13 @@ export namespace ustore {
 
       await cursor.update({
         options: obj_merge(cursor.value.options, options),
-        value:
-          typeof value == "object"
+        value: value !== undefined
+          ? typeof value == "object"
             ? Array.isArray(value)
               ? [...cursor.value.value, ...value]
               : obj_merge(cursor.value.value, value)
             : value
-            ? value
-            : cursor.value.value,
+          : cursor.value.value,
       });
 
       this._bc.postMessage(Date.now());

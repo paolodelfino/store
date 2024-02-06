@@ -25,7 +25,8 @@ export class Memory_Storage implements Storage {
 
 export function obj_merge<T extends object, U extends EveryOpt<T>>(a: T, b: U) {
   for (const key in b) {
-    if (typeof b[key] == "object") {
+    // @ts-ignore
+    if (a[key] !== undefined && typeof b[key] == "object") {
       // @ts-ignore
       obj_merge(a[key], b[key]);
     } else {
